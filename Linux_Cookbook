@@ -1,3 +1,103 @@
+Managing Users and Groups
+	Linux包含两种用户：人类用户和系统用户。每个用户都有一个独一的身份（UID）和至少一个组标识（GID）。所有用户都有一个主要组，并且可能是多个组的成员。
+	每个用户都有一个家目录（位于/home目录下，一般以用户名命名）。用户可能属于多个组，这种额外的组关系叫作附加组。组中的用户拥有该组的所有权限。权限控制对文件和命令的访问，是系统安全的基础。
+	系统用户代表系统服务和进程。系统用户需要用户帐户来控制其权限，并且在 /home 中没有登录名或目录。
+	人类用户分为两类：根用户或超级用户，拥有一切权力，可以在系统上执行任何操作。所有其他用户称为普通或非特权用户。普通用户被授予足够的权限来管理自己的文件并运行允许普通用户使用它们的命令。
+	普通用户可以被授予有限或完整的 root 权限。
+	【/etc/passwd】包含系统上的所有用户，【/etc/group】包含所有组。
+	Linux 附带了许多用于管理用户和组的命令：
+		①	useradd			添加新用户
+		②	groupadd		添加新组
+		③	userdel			删除用户
+		④	groupdel		删除组
+		⑤	usermod			对现有用户进行更改
+		⑥	passwd			创建和更改用户密码
+	这些是 Shadow Password Suite 的一部分，/etc/login.defs 是其主要配置文件。
+	在 Shadow Password Suite 出现之前，所有相关文件都必须单独编辑，有多个密码管理命令，并且散列密码存储在 /etc/passwd 和 /etc/group 中。 这两个文件必须是全世界可读的，因此在其中存储密码（即使它们经过哈希处理）也会带来麻烦。 
+	将散列密码重新定位到影子文件 /etc/shadow 和 /etc/gshadow（这些文件只能由 root 访问）中，增加了一层强大的保护。 Shadow Password Suite 的使用寿命证明了其设计和编码的出色程度。
+1、用户UID和GID
+	①	使用不带任何选项的【id】命令，可以查看当前用户的UID和GID。
+		# id
+		用户id=0(root) 组id=0(root) 组=0(root) 上下文=unconfined_u:unconfined_r:unconfined_t:s0-s0:c0.c1023
+	②	显示指定用户的UID和GID
+		# id miggi
+		用户id=1000(miggi) 组id=1000(miggi) 组=1000(miggi)
+	③	查看有效身份ID
+		id -un
+	》扩展
+		在Linux上有三种类型的用户：真实 UID/GID、有效 UID/GID、保存的 UID/GID。
+		真实 ID 是创建用户时为用户分配的UID和GID。即【id】命令显示的UID和GID。
+		有效 ID 是用于运行需要与启动该进程的用户不同的权限的进行的UID【如，运行passwd时，有效ID是root】。
+		保存的ID由需要提升权限（通常是root权限）的进程使用。当进程需要执行需要较少权限时，可以暂时切换到非特权用户ID。将有效UID更改为较低的权限值，并将原来的有效UID保存到SUID中，保存用户ID。当进程再次需要提升权限时，会更改为SUID。
+	》id选项说明：
+		-u		显示有效UID号
+		-g		显示有效GID号
+		-G		显示所有组ID
+		-n		打印名称而不是数字。可与 -u 、-g 和 -G 组合使用。
+		-r		显示真实ID。可与 -u 、-g 和 -G 组合使用。
+2、使用 useradd 创建人类用户
+	大多数 Linux 发行版中都包含 useradd 命令，并且可以根据您的要求进行配置。 不同 Linux 发行版的默认配置各不相同。
+	①	创建新用户
+		useradd test1
+	②	查看新用户ID，即家目录
+		id test1
+		用户id=1001(test1) 组id=1001(test1) 组=1001(test1)
+		s -a /home/test1
+		.  ..  .bash_logout  .bash_profile  .bashrc
+	③	设置用户密码
+		passwd test1
+		创建用户密码后，可以选择强制用户在首次登录时重置密码：
+		passwd -e test1
+	新建的用户会附加到【/etc/passwd】中。
+	》useradd 用法
+		useradd [选项] 登录名
+		useradd -D
+		useradd -D [选项]
+	》useradd 选项
+		    --badname                 do not check for bad names
+		-b, --base-dir BASE_DIR       新账户的主目录的基目录
+		    --btrfs-subvolume-home    use BTRFS subvolume for home directory
+		-c, --comment COMMENT         新账户的 GECOS 字段
+		-d, --home-dir HOME_DIR       新账户的主目录
+		-D, --defaults                显示或更改默认的 useradd 配置
+		-e, --expiredate EXPIRE_DATE  新账户的过期日期
+		-f, --inactive INACTIVE       新账户的密码不活动期
+		-g, --gid GROUP               新账户主组的名称或 ID
+		-G, --groups GROUPS           新账户的附加组列表
+		-h, --help                    显示此帮助信息并退出
+		-k, --skel SKEL_DIR           使用此目录作为骨架目录
+		-K, --key KEY=VALUE           不使用 /etc/login.defs 中的默认值
+		-l, --no-log-init             不要将此用户添加到最近登录和登录失败数据库
+		-m, --create-home             创建用户的主目录
+		-M, --no-create-home          不创建用户的主目录
+		-N, --no-user-group           不创建同名的组
+		-o, --non-unique              允许使用重复的 UID 创建用户
+		-p, --password PASSWORD       加密后的新账户密码
+		-r, --system                  创建一个系统账户
+		-R, --root CHROOT_DIR         chroot 到的目录
+		-P, --prefix PREFIX_DIR       prefix directory where are located the /etc/* files
+		-s, --shell SHELL             新账户的登录 shell
+		-u, --uid UID                 新账户的用户 ID
+		-U, --user-group              创建与用户同名的组
+		-Z, --selinux-user SEUSER     为 SELinux 用户映射使用指定 SEUSER
+	》扩展
+		所有新用户在设置密码前均处于非活动状态。为用户创建的第一个组，无论是用户私有组还是所有用户的公共组，都是其主要组。 用户分配到的所有其他组都是补充组。
+		创建用户时添加附加组【这些组必须已存在】（-G, --groups）
+			useradd -G group1,group2, group3 test1
+		创建用户时设置 GECOS 字段
+			useradd -G group1,group2,group3 -c 'Test 1,,,,' test1
+		四个逗号定义五个字段：全名、房间号、工作电话、家庭电话和其他。 很久以前，这被称为 GECOS 数据。 GECOS是通用电气综合运营管理器的缩写，是一种大型机操作系统。
+		可以在这些字段中输入任何文本字符串，也可以不输入任何内容，但包含用户的全名很有用。见【/etc/passwd】中的 GECOS 字段。
+		useradd与多个配置文件关联。
+		man 8 useradd
+		man 5 login.defs
+		/etc/default/useradd
+		/etc/skel
+		/etc/login.defs
+3、使用useradd创建系统用户
+
+
+
 
 
 
@@ -97,6 +197,126 @@ Secure Remote Access with OpenSSH
 		ssh-keygen -lf /etc/ssh/ssh_host_rsa_key
 7、使用公钥验证
 	使用公钥验证比密码验证要更强。可以选择使用单个公钥来访问多个主机，或为每个远程主机创建唯一的公钥。
+	①	创建新SSH密钥
+		ssh-keygen -C "backup server2" -f ~/.ssh/id-server2 -t rsa -b 4096
+	②	将新SSH公钥传输到要登录的远程主机：
+		ssh-copy-id -i ~/.ssh/id-server2 duchess@server2
+	③	使用公钥验证用户
+		ssh -i ~/.ssh/id-server2 duchess@server2
+	可以使用这个新密钥来访问多个远程主机，或者为每个远程主机创建一个唯一的密钥。 在多台机器上使用相同的密钥很容易使用，但在多台主机上更改却很痛苦。如果唯一密钥被泄露或丢失，只需更换一次。
+	应该为创建的SSH密钥设置密码。如果没有密码，任何获得私钥访问权限的人都可以伪装成我们。
+	ssh-copy-id 可确保公钥被复制到 正确的位置，即远程主机上的 ~/.ssh/authorized_keys，格式正确且权限正确。 它还确保私钥不会被错误复制。
+	》选项说明：
+		-C		为密钥添加注释。用于帮助记住密钥是干什么的。
+		-f		指定密钥名称。
+		-t		指定密钥类型
+		-b		指定位【bit】强度，只有【rsa】使用该选项。默认是2048，最大为4096。
+		-i		告诉SSH客户端，使用哪个密钥。当有多个密钥时，必须使用该选项。否则SSH客户端会尝试使用所有密钥。这样会出现 “Too many authentication failures” 错误消息。
+8、管理多个公钥
+	通过【~/.ssh/config】管理多个公钥。这样在通过密钥登录时可不指定密钥。如：
+		Host server2
+		HostName server2
+		User duchess
+		  IdentityFile ~/.ssh/id-server2
+		  IdentitiesOnly yes
+	这样就可通过【ssh server2】来以duchess登录server2了。
+	》选项说明：
+		Host				定义每个配置的开始，指定用于登录的标签
+		HostName			远程主机【可以是主机名、完全限定域名，或IP地址】
+		User				远程主机上的用户
+		IdentityFile		公钥文件的完整路径
+		IdentitiesOnly yes	告诉 ssh 使用 ~/.ssh/config中的配置，或传递命令行，而不是使用其他提供程序（如果有）。
+		Port				指定sshd服务监听的端口号
+9、更改密码
+	使用【ssh-keygen -p】更改指定私钥的密码。如：
+		ssh-keygen -p -i ~/.ssh/id-server2
+	密码短语不可恢复。 如果丢失了密码，唯一的选择是使用新密码创建新密钥。
+10、使用sshfs挂载远程文件系统
+	sshfs用于挂载整个远程文件系统，然后就可以像本地文件系统一样访问。安装 sshfs 包，它还应该安装 FUSE（用户空间中的文件系统）。需要一个具有写入权限的本地目录作为挂载点
+	①	安装 sshfs
+		yum -y install fuse-sshfs
+	②	挂载远程目录
+		sshfs server2: sshfs/
+	③	卸载远程文件系统
+		fusermount -u sshfs/
+	也可以挂载指定的目录，如：
+		sshfs server2:/home/duchess/arias sshfs/
+	注意：sshfs不能使用【~】（不支持）
+	如果网络连接不可靠。通过【-o reconnect】告诉sshfs在网络中断后自动重连。
+11、加密算法
+	通过【ssh -Q <query_option>】查询OpenSSH支持的算法。通过【help】选项列出所有支持的算法。如：
+		# ssh -Q help
+		cipher
+		cipher-auth
+		compression
+		kex
+		kex-gss
+		key
+		key-cert
+		key-plain
+		key-sig
+		mac
+		protocol-version
+		sig
+	列出【sig】签名算法：
+		# ssh -Q sig
+		ssh-ed25519
+		sk-ssh-ed25519@openssh.com
+		ssh-rsa
+		rsa-sha2-256
+		rsa-sha2-512
+		ssh-dss
+		ecdsa-sha2-nistp256
+		ecdsa-sha2-nistp384
+		ecdsa-sha2-nistp521
+		sk-ecdsa-sha2-nistp256@openssh.com
+		webauthn-sk-ecdsa-sha2-nistp256@openssh.com
+	》说明
+		cipher				列出支持的对称密码
+		cipher-auth			列出支持的对称密码，这些密码也支持经过身份验证的加密。
+		compression			列出支持的压缩类型
+		mac					列出支持的消息完整性代码。 这些可以保护消息的数据完整性和真实性。
+		kex					列出密钥交换算法
+		kex-gss				列出了GSSAPI（通用安全服务应用程序接口）密钥交换算法
+		key					列出密钥类型
+		key-cert			列出证书密钥类型
+		key-plain			列出非证书密钥类型
+		key-sig				列出所有密钥类型和签名算法
+		protocol-version	列出支持的SSH协议版本
+		sig					列出支持的签名算法
+	
+
+Secure Remote Access with OpenVPN
+	开放虚拟专用网络 (OpenVPN) 在不同物理位置的两个不同网络之间创建 TLS/SSL 加密连接。这种连接称为加密隧道，这是一种安全的传输方式，可保护连接免受大的不良互联网的影响。OpenVPN依赖于OpenSSL。
+1、OpenVPN概述
+	VPN 是网络的安全扩展，它使远程工作人员可以使用本地用户拥有的所有相同服务，因此远程用户的体验与实际存在于您所在位置的用户的体验相同。 
+	他们可以访问您的本地网络服务器、电子邮件、文件共享、聊天服务器、视频会议应用程序、内部 wiki，以及您与外界隔离且仅对网络内部的用户可用的所有内容。 
+	VPN 与 SSH 不同，SSH 可以连接各个计算机。 VPN 将网络和单个主机链接到网络。
+	OpenVPN 是一个开源项目，免费的服务器和客户端是 openvpn 软件包，可在所有 Linux 发行版上使用，并可在 OpenVPN Community Downloads【https://openvpn.net/community-downloads/】中下载。 
+	商业选项包括 OpenVPN 访问服务器，它是带有附加管理工具和云选项的本地服务器。托管个人计划仅需要安装客户端并提供对 OpenVPN 服务器全球网络的访问。
+	真正的 VPN 非常强大，因为它不信任任何人，并且需要经过身份验证的端点，其中服务器和客户端相互进行身份验证。 
+	大多数商业 TLS/SSL VPN 不会这样做，而是信任所有客户端，就像购物网站一样。 这更加灵活，允许用户使用任何设备从任何地方登录。 无需安装和配置客户端软件以及复制加密密钥，非常方便。 
+	但对于目光短浅的内部网络来说，您最不需要的就是用户从感染了键盘记录器和间谍软件的随机 PC 或智能手机登录，然后受到热烈欢迎进入您的 LAN。
+	①	证书颁发机构（CA）
+	证书颁发机构 (CA) 是运行 OpenVPN 服务器的最重要部分。 CA 颁发数字证书并证明公钥的所有权。CA 是值得信赖的权威机构，这就是为什么许多站点使用商业 CA 的原因。自签名证书，可以在您的组织内部使用。面向客户的站点应使用商业 CA。 
+	使用 CA 可以让您免去在 OpenVPN 服务器上保存客户端证书副本的麻烦； 服务器需要知道的是客户端证书是由您的 CA 进行身份验证的。
+	②	SSL与TLS
+	安全套接字层（SSL）和传输层安全性（TLS）是加密协议。TLS是从SSL发展而来的。所有版本的SSL均已启用，TLS 1.0 和 TLS 1.1 也是如此。使用 TLS 1.2 或 1.3，并禁用所有其他协议。 由于安全缺陷，旧版本已被弃用。
+	③	TUN/TAP
+	TUN 和 TAP 设备是虚拟网络接口。 它们内置于 Linux 内核中，无需执行任何操作即可使它们可用。 TUN 设备用于路由网络，TAP 设备用于桥接网络。 您的服务器和客户端配置文件指定要使用哪一个。
+2、安装OpenVPN，服务器和客户端
+	OpenVPN 网站同时提供社区开源 OpenVPN 和商业 OpenVPN Access Server。 社区 OpenVPN 是免费且开源的。
+	在Linux上安装openvpn软件包。尽可能获得最新版本，这提供了服务器和客户端。源tarball和Windows安装程序可从OpenVPN社区下载获取。
+	对于用户，可以尝试免费的 OpenVPN 访问客户端，该客户端适用于 Linux、macOS、Android、iOS 和 Windows。 它们专为商业 OpenVPN 访问服务器而设计，也可与社区 OpenVPN 服务器配合使用。
+	在 Linux 上，OpenVPN 必须安装在 OpenVPN 服务器和所有客户端上。 OpenVPN 包提供客户端和服务器功能。
+	Ubuntu、Fedora 和 openSUSE 包含提供与 NetworkManager 集成的附加软件包，这使得管理、连接和断开 VPN 变得轻松简单。
+	NetworkManager-openvpn（Fedora、openSUSE）和 network-manager-openvpn（Ubuntu）将 OpenVPN 与 Network Manager 集成。
+	OpenVPN Access Server 是免费下载的，可以同时连接最多两个客户端，而无需购买许可证。 它具有附加功能，例如 Web 管理界面和使用免费 OpenVPN 访问客户端进行自动配置。 
+	如果从社区 OpenVPN 开始，然后决定迁移到 OpenVPN Access Server，在社区 OpenVPN 服务器中学到的所有内容也适用于 Access Server。
+3、设置简单的连接测试
+	
+	
+
 
 
 
