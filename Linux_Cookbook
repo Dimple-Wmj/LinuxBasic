@@ -1,0 +1,107 @@
+
+
+
+
+
+
+Secure Remote Access with OpenSSH
+	OpenSSH 是安全远程管理的首选工具。 它对会话期间的身份验证和所有流量进行加密，并保证数据传输的完整性。 如果发生某些事情改变了你的数据包，SSH 会告诉你。
+	OpenSSH支持大量强加密算法。 所有这些都不受专利限制，因为 OpenSSH 团队竭尽全力确保 OpenSSH 内部不存在任何专利或其他受限制的代码。
+	OpenSSH是一套远程传输实用程序：
+		sshd		OpenSSH服务器守护程序
+		ssh			secure shell的缩写，虽然它并不真正包含 shell，但提供了到远程系统上的命令 shell 的安全通道。
+		scp			secure copy，加密文件传输器。
+		sftp		安全文件传输协议，提供文件访问。
+		ssh-copy-id	用于将公钥安装到远程SSH服务器的 authorized_keys 文件中。
+		ssh-keyscan	查找并收集网络上的公共主机密钥，从而省去了手动查找它们的麻烦。
+		ssh-keygen	生成和管理身份验证密钥
+		ssh-add		将身份添加到身份验证代理，ssh-agent。
+	sshfs 在本地 PC 上安装远程文件系统，而 ssh-agent 会记住 SSH 私钥上的密码，以便多个SSH登录时进行自动身份验证。 ssh-agent 绑定到单个登录会话，因此注销或打开另一个终端意味着重新开始。
+	OpenSSH支持不同类型 的身份验证：
+		①	密码验证【Password authentication】				通过远程Linux登录名和密码进行身份验证。
+		②	公钥验证【Public key authentication】			通过个人SSH公钥进行身份验证。【需要创建和分发公钥，并只能从保存对应私钥的计算机登录】
+		③	无密码验证【Passphrase-less authentication】	无需密码的公钥身份验证。 这对于脚本和 cron 作业等自动化服务很有用。 任何成功窃取私钥的人都可以轻松伪装成您，因此需要非常保护无密码的私钥。
+	身份验证密钥有两种不同的用途：
+		①	主机密钥【host keys】	用于计算机身份验证。
+		②	公钥【public heys】		用于用户身份验证。
+	SSH密钥成对出现，包括私有密钥和公共密钥。传输使用公钥加密并使用私钥解密。可以根据需要安全地分发公钥，同时必须保护私钥并不让其他人拥有。
+1、安装OpenSSH Server
+	大多数 Linux 发行版默认安装 OpenSSH 客户端，但并不总是安装服务器。 不同的 Linux 发行版以不同的方式打包 OpenSSH，因此请使用包管理器列出适用的 Linux 的包。
+	①	安装OpenSSH Server
+		yum –y install openssh-server openssh-clients
+	②	通过systemctl管理sshd
+		systemctl start sshd
+		systemctl status sshd
+		systemctl reload sshd
+		systemctl stop sshd
+2、生成新地主机密钥【Host Keys】
+	Linux发行版可能不会再安装时自动创建主机密钥，或想要使用替换现有主机密钥，又或者克隆安装虚拟机想要唯一的主机密钥。可以通过【ssh-keygen】生成新的主机密钥。
+	有四种不同的密钥：RSA、DSA、ECDSA和ED25519。
+	①	删除旧的公钥
+		rm /etc/ssh/ssh_host*
+	②	创建所有的公钥：
+		ssh-keygen -A
+	③	扩展
+		对于应该使用哪种密钥格式。最简单的做法是使用RSA、ECDSA和ED25519，并避免使用DSA。【删除DSA主机密钥，保留其余三种】。
+		RSA是最古老的，它很强大并提供了最大的兼容性。ECDSA 和 ED25519 更新、非常强大且计算成本较低。
+3、配置OpenSSH Server
+	①	确保服务器的私有主机密钥仅root拥有且只读
+		# ls -l /etc/ssh/ssh_host*_key
+		-rw-r-----. 1 root ssh_keys  492 12月  3 19:25 /etc/ssh/ssh_host_ecdsa_key
+		-rw-r-----. 1 root ssh_keys  387 12月  3 19:25 /etc/ssh/ssh_host_ed25519_key
+		-rw-r-----. 1 root ssh_keys 2578 12月  3 19:25 /etc/ssh/ssh_host_rsa_key
+	②	确保服务器的公钥由root拥有，其他人只有读权限
+		# ls -l /etc/ssh/ssh_host*.pub
+		-rw-r--r--. 1 root root 162 12月  3 19:25 /etc/ssh/ssh_host_ecdsa_key.pub
+		-rw-r--r--. 1 root root  82 12月  3 19:25 /etc/ssh/ssh_host_ed25519_key.pub
+		-rw-r--r--. 1 root root 554 12月  3 19:25 /etc/ssh/ssh_host_rsa_key.pub
+	③	修改sshd配置【/etc/ssh/sshd_config】
+		取消要使用的和更改的选项注释。
+		》在接受登录前检查用户文件和主目录的文件模式和所有权是否正确：
+			StrictModes yes		# 如果权限不正确，该设置将不允许登录
+		》定义监听地址：
+			ListenAddress 192.168.10.15
+			ListenAddress 127.16.32.5
+		》定义监听端口：
+			检查/etc/services查找未使用的端口，使用大于1024的端口号，
+			将选择的端口号添加到/etc/services中：
+				sshd 2022
+				sshd 2023
+			sshd监听端口：
+				Port 2022
+				Port 2023
+		》限制仅允许访问指定组【/etc/groups】：
+			AllowGroups	webadmins backupadmins	
+			# DenyGroups abcd	# 拒绝访问指定组
+		》不允许root用户登录：
+			PermitRootLogin	no
+		》仅允许通过公钥认证登录root用户
+			PermitRootLogin prohibit-password
+		》禁止所有用户密码登录
+			PasswordAuthentication no
+		》禁用指定用户登录：
+			DenyUsers duchess stash@example.com cagney@192.168.10.5
+			# 使用 AllowUsers指定允许登录的用户。DenyUsers优先级高于 AllowUsers 。
+		》限制服务器等待用户登录并完成连接的时间长度。 默认值为 120 秒：
+			LoginGraceTime 90
+		》限制连接失败尝试次数，默认6次：
+			MaxAuthTries 4
+4、检查配置语法
+	通过【sshd -t】命令检查【/etc/ssh/sshd_config】配置文件中的配置是否有语法错误。
+5、首次登录
+	主机公钥交换仅在第一次登录时发生一次【将服务器的公共主机密钥保存到客户端的~/.ssh/known_hosts文件中】。除非用新密钥替换该密钥，或从~/.ssh/known_hosts文件中将其删除。
+	【~/.ssh/known_hosts】文件可以包含任意数量的主机密钥。
+	存在主机密钥传输可能被拦截并被伪造密钥替换的风险，这将允许攻击者访问您的系统。可以在键入 yes 之前验证公钥指纹。
+6、检索公钥指纹
+	在服务器上使用【ssh-keygen】命令以及要查询的主机公钥来检索其指纹。如：
+		ssh-keygen -lf /etc/ssh/ssh_host_rsa_key
+7、使用公钥验证
+	使用公钥验证比密码验证要更强。可以选择使用单个公钥来访问多个主机，或为每个远程主机创建唯一的公钥。
+
+
+
+
+
+
+
+		
