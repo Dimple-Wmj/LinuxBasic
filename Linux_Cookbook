@@ -95,6 +95,100 @@ Managing Users and Groups
 		/etc/skel
 		/etc/login.defs
 3、使用useradd创建系统用户
+	创建系统用户【没有主目录、没有登录shell，UID编号在系统用户UID范围内】：
+		useradd -rs /bin/false service1
+	》选项说明：
+		-r		创建一个具有系统用户正确数字范围内真实ID的系统用户
+		-s		指定登录shell
+	》扩展
+		在过去，大多数服务都是以【nobody】用户身份运行的。 现在，服务拥有自己的唯一用户是一种常见的做法，因为这比拥有多个服务的【nobody】用户提供了更强的安全性。很少需要创建系统用户，因为服务在安装时应该创建自己的唯一用户。
+		始终为【nobody】用户分配 UID 65534 和 GID 65534。
+4、更改 useradd 默认设置
+	useradd配置分布在多个配置文件中：/etc/default/useradd、/etc/login.defs 和 /etc/skel 目录中的文件。显示 useradd 的默认配置：
+		# useradd -D
+			GROUP=100
+			HOME=/home
+			INACTIVE=-1
+			EXPIRE=
+			SHELL=/bin/bash
+			SKEL=/etc/skel
+			CREATE_MAIL_SPOOL=yes
+		GROUP=100		为所有新用户设置一个默认的共享组【该组必须存在】。并且 /etc/login.defs 中要有【USERGROUPS_ENAB no】设置。
+						通过在 /etc/login.defs 中设置【USERGROUPS_ENAB yes】设置私有用户组，并且要注释掉 /etc/default/useradd 中的【GROUP】。
+		HOME=			设置所有新用户主目录的默认目录。默认为 /home 。
+		IINACTIVE=-1	设置密码过期后直到账户被锁定的天数。【0】将在密码过期后立即禁用账户，【-1】将禁用锁定账户。
+		EXPIRE=			设置账户过期日期【格式为：YYYY-MM-DD】。【EXPIRE=empty】意味着账号将不会过期。
+		SEHLL=/bin/bash	设置默认的命令shell。
+		SKEL=/etc/skel	设置要自动分发给新用户的文件的位置。大多数Linux将其放置在 /etc/skel 。这些文件包括【.bash_logout】、【.bash_profile】或【.profile】、【.bashrc】以及希望新用户拥有的任何其他文件。
+						可以编辑这些文件以满足要求。SKEl 是 skelton 的缩写。
+		CREATE_MAIL_SPOOL=yes	是旧时代的遗物，应该设置为 yes，因为可能有一些遗留流程仍然需要它。
+	/etc/login.defs 中的以下值与用户创建默认值相关：
+		USERGROUPS_ENAB	yes	启用私有用户组
+		CREATE_HOME yes		配置 useradd 自动创建用户主目录。
+	》扩展
+		UID 编号范围在【/etc/login.defs】中定义。每个 UID 必须是唯一的，因此用户帐户创建命令会从此文件中定义的范围分配 UID。 
+		通常，人类 UID 从 1000 开始，由 useradd 自动分配。可以使用 -u 选项覆盖此设置，但必须选择遵循配置的编号方案的未使用的编号。
+		首次登录时强制更改密码是一种简单的预防措施，可防止原始密码在从管理员传递给用户时可能落入坏人之手。
+5、使用 groupadd 创建用户组和系统组。
+	①	创建用户组
+		groupadd musicians
+	②	创建系统组【-r】
+		groupadd -r service1
+	系统组和用户组的不同之处在于分配给它们的UID和GID编号范围。这是在 /etc/login.defs 中为 groupadd 和 useradd 定义的。如：
+		# Min/max values for automatic uid selection in useradd(8)
+		#
+		UID_MIN 1000
+		UID_MAX 60000
+		# System accounts
+		SYS_UID_MIN 201
+		SYS_UID_MAX 999
+		# Extra per user uids
+		SUB_UID_MIN 100000
+		SUB_UID_MAX 600100000
+		SUB_UID_COUNT 65536
+		#
+		# Min/max values for automatic gid selection in groupadd(8)
+		#
+		GID_MIN 1000
+		GID_MAX 60000
+		# System accounts
+		SYS_GID_MIN 201
+		SYS_GID_MAX 999
+		# Extra per user group ids
+		SUB_GID_MIN 100000
+		SUB_GID_MAX 600100000
+		SUB_GID_COUNT 65536
+	GID 编号由 groupadd 根据 /etc/login.defs 中定义的编号范围自动管理。可以使用 -g 选项覆盖此设置，但选择的 GID 必须在定义的范围内，并且不得已被使用。
+6、使用 usermod 将用户添加到组
+	①	将用户【duchess】添加到指定组【musicians】
+		usermod -aG musicians duchess
+	②	将用户【duchess】添加到多个组
+		usermod -aG musicians,composers,stagehands duchess
+	另外，也可以直接编辑 /etc/group 文件，将用户名放在指定组中。当列出多个组成员时，列表必须以逗号分隔，名称之间不能有空格。如：
+		musicians:x:900:stash,madmax,duchess
+	》注意：
+		如果单独使用【-G】（没有指定【-a】），则用户将从所有现有组中移除，并替换为新组。
+		当更改已登录用户的组成员身份时，用户必须注销然后重新登录才能激活更改。 有多种解决方法可以在不注销的情况下激活新的组分配，但它们都有局限性，例如仅限于当前 shell。 登录时会枚举组，因此最可靠的解决方案是注销并重新登录。
+7、检查密码文件完整性
+	【pwck】检查 /etc/passwd 和 /etc/shadow 的完整性，【grpck】检查 /etc/group 和 /etc/gshadow。
+	不会编辑 /etc/shadow 或 /etc/gshadow 。但会编辑 /etc/passwd 和 /etc/group。
+8、禁用用户账号
+	要暂时停用账号，使用【passwd】命令禁用用户的密码。如：
+		passwd -l stash
+	解锁用户账号。如：
+		passwd -u stash
+	锁定【lock】账号不会阻止用户通过不同的身份验证方法（如SSH密钥）登录。要完全禁用用户，使用 usermod 命令。如：
+		usermod --expiredate 1 stash
+	当用户尝试登录时，会看到“您的帐户已过期；恢复帐户：
+		usermod --expiredate -1 stash
+	另一种禁用账号的方法是在 /etc/passwd 中将用户的密码字段【x】替换为【*】。
+		stash:*:1009:1009:Stash Cat,,,:/home/stash:/bin/bash
+	通过用【x】替换【*】来重新启用账号。
+9、使用 userdel 删除用户
+	
+		
+
+
 
 
 
