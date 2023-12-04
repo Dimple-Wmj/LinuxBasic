@@ -185,7 +185,80 @@ Managing Users and Groups
 		stash:*:1009:1009:Stash Cat,,,:/home/stash:/bin/bash
 	通过用【x】替换【*】来重新启用账号。
 9、使用 userdel 删除用户
-	
+	①	从【/etc/passwd】中删除用户【stash】、【stash】的主要组和所有组成员身份以及shadow文件。
+		userdel stash
+		如果【stash】属于一个共享主用户组，则该组将不会被删除。
+	②	使用【-r】选项删除用户主目录及其包含的内容和邮件池【mail spool】
+		usedel -r stash
+10、使用【su】成为root
+	可以使用【su】名称切换到root用户【需要root密码】。如：
+		su -l
+	【-l】选项调用root用户的环境，更改root的主目录并加载root的环境变量。省略【-l】以保留当前的环境。
+	》su 使用说明
+		用法：
+			su [选项] [-] [<用户> [<参数>...]]
+			将有效用户ID和组ID更改为<用户>的有效用户ID和组ID。仅仅 - 就意味着 -l。 如果未给出 <user>，则假定为 root。
+		选项：
+			-m, -p, --preserve-environment		不重置环境变量
+			-w,	--whitelist-environment <list>	不重置指定变量
+			-g,	--group <组>					指定主组
+			-G,	--supp-group <组>				指定附加组
+			- ,	-l,	--login						使 shell 成为登录 shell
+				-c, --command <命令>			使用 -c 向 shell 传递一条命令
+					--session-command <命令>	使用 -c 向 shell 传递一条命令，而不创建新会话
+			-f,	--fast							向 shell 传递 -f 选项（csh或tcsh）
+			-s, --shell <shell>             	若 /etc/shells 允许，运行<shell>
+			-P, --pty							创建一个新的伪中断
+11、使用 sudo 授予有限的 root 权限
+	sudo 比 su 更安全，因为它向特定用户授予执行特定任务的有限 root 权限、记录活动，并在有限的时间内（默认为 15 分钟）缓存用户的密码。 15 分钟后，用户必须再次向 sudo 提供密码。缓存持续时间是可配置的。 
+	sudo 保护 root 的密码，因为 sudo 用户使用自己的密码。
+	【/etc/sudoers】是其配置文件，应该使用特殊命令【visudo】编辑它。这将使用默认文本编辑器打开 /etc/sudoers，可以查看和编辑默认配置。
+	》配置说明【root ALL=(ALL) ALL】
+		root	用户字段。该字段保存任何单个用户、用户别名或系统组
+		ALL=	主机字段。ALL表示任何地方法的任何主机，或可以使用主机别名，或单个主机
+		(ALL)	可选用户字段。(ALL)表示一个或多个用户可以像其他用户一样运行命令，或可以指定某些用户。
+		ALL		命令字段。ALL表示不受限制，可以指定允许的命令列表。
+	》配置示例
+		%sudo ALL=(ALL) ALL	添加到 sudo 组的任何用户都将获得完整的 sudo 权限，就像 root 一样。百分号表示 %sudo 是 /etc/group 中的组，而不是 /etc/sudoers 中配置的组。
+		stash server1 = /bin/rpm, /usr/bin/yum, /usr/bin/dnf	# 用户名、本地计算机的主机名、以逗号分隔的允许命令列表
+		# 如果允许的命令过长，可以创建一些命令别名。如
+		Cmnd_Alias SOFTWARE = /bin/rpm, /usr/bin/yum, /usr/bin/dnf
+		Cmnd_Alias SYSTEM = /usr/bin/systemctl start, /usr/bin/systemctl stop, /usr/bin/sytemctl reload, /usr/bin/systemctl restart, /usr/bin/systemctl status,
+		/usr/bin/systemctl enable, /usr/bin/systemctl disable, /usr/bin/systemctl mask, /usr/bin/systemctl unmask
+		stash server1 = SOFTWARE, SYSTEM
+		# 创建组【非/etc/group组】
+		User_Alias JRADMIN = stash, madmax
+		JRADMIN server1 = SOFTWARE, SYSTEM
+		# 可以创建一个Host_Alias来授予用户在多态计算机上的sudo权限。
+		Host_Alias SERVERS = server1, server2, server3
+		JRADMIN SERVERS = SOFTWARE, SYSTEM
+	》注意事项
+		不要过分相信将用户限制为一组特定的命令。 许多日常应用程序都提供了通过 shell 转义进行权限升级的方法，并且您的用户可以获得完全的 root 权限。
+		①	通过 awk 直接切换到root用户
+			如果给予用户【awk】的root权限。则用户可通过如下命令直接切换到【root】用户。
+				sudo awk 'BEGIN {system("/bin/bash")}'
+			这样普通用户【如duchess】将拥有完整的root权限。
+		②	less的 shell 转义
+				sudo less /etc/systctl.conf
+			通过键入【!sh】，进行 shell 转义。
+		跟踪可以提供 shell 转义的应用程序极其困难。如果希望监视 sudo 用户，journalctl会记录所有内容。
+	在某些 Linux 中，例如 Fedora，wheel 组是默认的 sudo 组。 检查 /etc/sudoers 文件以了解发行版如何配置它。还可以创建自己的 sudo 组，并将其命名为想要的任何名称。
+	【/etc/sudoers】文件仅控制本地计算机上的用户。包括其他计算机（如 SERVERS 别名）允许您在多台计算机上共享单个配置文件。sudo忽略本地计算机上不存在的任何项目，如主机或用户。
+12、延长 sudo 密码超时
+	在大多数 Linux 发行版上，sudo 会默认缓存密码 15 分钟。 15 分钟后，必须再次输入密码。 当有很多工作要做时，厌倦了必须频繁输入密码，可以将缓存间隔设置得更长。
+	通过 visudo 编辑【/etc/sudoers】中得 timestamp_timeout 配置。如：
+		Defaults timestamp_timeout=60
+	如果将其设置为0， sudo 会在每次使用它都要求密码。如果设置为负数【如，-1】，密码将不会过期。
+13、创建单独的 sudoers 配置
+	可以在 /etc/sudoers.d 中创建单独的配置。如：
+		cd /etc/sudoers.d/
+		sudo visudo -f stash
+	这会创建【stash】文件。只需输入与 /etc/sudoers 中的条目不同的配置项，而不是复制整个文件。这是管理多个用户的一个很好的功能。 不要管理一个大的配置文件，而是将其分解为较小的每个用户文件。
+14、将 sudo 更改为不询问 Root 密码
+
+
+
+
 		
 
 
