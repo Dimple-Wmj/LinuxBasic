@@ -1,0 +1,234 @@
+Access Control
+1、Basic
+	①	资源和所有权
+		用户	启动进程和拥有文件。进程是内核加载到主内存并运行的程序（可执行文件）。
+		文件	有所有者；默认，创建该文件的用户拥有该文件
+		进程	使用文件进行通信和持久化。用户也可间接使用文件，但他们需要通过进程来这样做。
+	②	沙箱【sandboxing】
+		在谈论资源访问时，经常会遇到的一个术语是沙箱。沙箱是一个定义模糊的术语，可以指一系列不同的方法，从监狱【jails】到容器再到虚拟机，可以在内核或用户空间中进行管理。
+		通常有一些东西在沙箱中运行——通常是一些应用程序，并且监督机制在沙箱进程和托管环境之间强制执行一定程度的隔离。
+	③	访问控制类型
+		访问控制的一方面是访问本身的性质。用户或进程是否直接访问资源。或者也许有一套明确的规则，规定进程在什么情况下可以访问哪种资源（文件或系统调用）。或者甚至可能记录访问本身。
+		在Linux环境中，两个最重要的是：
+			自主访问控制【DAC】	根据用户的身份限制对资源的访问。它是任意的，因为具有某些权限的用户将它们传递给其他用户。
+			强制访问控制		基于表示安全级别的分层模型。用户被分配许可级别，资源被分配安全标签。用户只能访问等于（或低于）自己权限级别对应的资源。
+								在强制访问控制模型中，管理员严格且排他地控制访问，设置所有权限。即，用户无法自己设置权限，即使他们拥有资源。
+		Linux传统上有一种要么全由要么全无的态度——要么是有权改变一切的超级用户，要么是访问权限有限的普通用户。为了稍微限定以下Linux中【全有或全无的态度】：大多数Linux系统中的默认设置允许【其他人】对几乎每个文件和可执行文件进行读取访问。
+		SELinux 可能是最著名的 Linux 强制访问控制实现。 它是为了满足政府机构的高安全要求而开发的，并且通常在这些环境中使用，因为可用性受到严格的规则的影响。 强制访问控制的另一个选项是 AppArmor，自 2.6.36 版本起就包含在 Linux 内核中，并且在 Ubuntu 系列 Linux 发行版中相当流行。
+2、用户
+	在 Linux 中，经常从目的或预期用途的角度区分两种类型的用户帐户：
+	①	系统用户	通常，程序（有时称为守护程序）使用这些类型的帐户来运行后台进程。这些程序提供的服务可以是系统的一部分，如网络【sshd】，也可以是应用程序层【如mysql】。
+	②	常规用户	通过shell交互使用Linux的人类用户。
+	Linux 通过 UID 来识别用户，属于一个或多个组的用户通过组ID（GID）来识别。不同的Linux发行版有自己的方式来决定如何管理UID范围。如支持systemd的发行版具有以下约定：
+		UID 0	 					root
+		UID 1 ~ 999					为系统用户保留
+		UID 65534					nobody
+		UID 1000 ~ 65533
+			65536 ~ 4294967294		常规用户
+	①	本地用户管理
+		实现本地用户管理的四个文件是：
+			/etc/passwd				用户数据库
+			/etc/group				组数据库
+			/etc/shadow				用户密码
+			/etc/gshadow			组密码
+		/etc/passwd 用于跟踪普通用户的用户名、UID、组成员身份和其他数据【如主目录、登录shell等】。
+		》说明
+			root:x:0:0:root:/root:/bin/bash
+			①	root		用户名【不得超过32个字符】
+			②	x			用户的密码，x 表示（加密的）密码存储在 /etc/shadow 中
+			③	0			UID。注意，Linux 保留 1000 以下的 UID 供系统使用。
+			④	0			用户主组（GID），见 /etc/group
+			⑤	root		用户信息【全名或联系信息，如电话号码】。通常也称为GECOS字段【注意，不适用GECOS格式，而是字段本身通常有能够与与账号关联的信息】。
+			⑥	/root		用户家目录
+			⑦	/bin/bash	登录 shell。要防止交互式登录，请使用 /sbin/nologin
+		由于历史原因，密码存储在 /etc/shadow 文件中。虽然每个用户都可以读取 /etc/passwd ，但通常需要root权限才能读取 /etc/shadow 。
+		使用 useradd 命令新建用户。
+		》useradd 使用说明
+		用法：useradd [选项] 登录名
+		      useradd -D
+		      useradd -D [选项]
+		
+		选项：
+		      --badname                 do not check for bad names
+		  -b, --base-dir BASE_DIR       新账户的主目录的基目录
+		      --btrfs-subvolume-home    use BTRFS subvolume for home directory
+		  -c, --comment COMMENT         新账户的 GECOS 字段
+		  -d, --home-dir HOME_DIR       新账户的主目录
+		  -D, --defaults                显示或更改默认的 useradd 配置
+		  -e, --expiredate EXPIRE_DATE  新账户的过期日期
+		  -f, --inactive INACTIVE       新账户的密码不活动期
+		  -g, --gid GROUP               新账户主组的名称或 ID
+		  -G, --groups GROUPS           新账户的附加组列表
+		  -h, --help                    显示此帮助信息并退出
+		  -k, --skel SKEL_DIR           使用此目录作为骨架目录
+		  -K, --key KEY=VALUE           不使用 /etc/login.defs 中的默认值
+		  -l, --no-log-init             不要将此用户添加到最近登录和登录失败数据库
+		  -m, --create-home             创建用户的主目录
+		  -M, --no-create-home          不创建用户的主目录
+		  -N, --no-user-group           不创建同名的组
+		  -o, --non-unique              允许使用重复的 UID 创建用户
+		  -p, --password PASSWORD       加密后的新账户密码
+		  -r, --system                  创建一个系统账户
+		  -R, --root CHROOT_DIR         chroot 到的目录
+		  -P, --prefix PREFIX_DIR       prefix directory where are located the /etc/* files
+		  -s, --shell SHELL             新账户的登录 shell
+		  -u, --uid UID                 新账户的用户 ID
+		  -U, --user-group              创建与用户同名的组
+		  -Z, --selinux-user SEUSER     为 SELinux 用户映射使用指定 SEUSER
+		除了用户之外，Linux还有组的概念，组在某种意义上只是一个或多个用户的集合。任何常规用户都属于一个默认组，但也可以是其他组的成员。可以通过 /etc/group 文件找到有关组和映射的信息。
+	②	集中用户管理
+		如果必须管理多台机器或服务器，本地用户管理很快就会过时。这是需要一种集中的方式来可以在本地应用于一台特定计算机的用户。有如下几种方式：
+		Ⅰ	基于目录
+			轻量级目录访问协议（LDAP）是一套已有数十年历史的协议，现已有IFTF正式化，它定义了如何通过互联网协议（IP）访问和维护分布式目录。
+		Ⅱ	通过网络
+			可以使用Kerberos通过网络方式对用户进行身份验证
+		Ⅲ	使用配置管理系统
+			这些系统（包括 Ansible、Chef、Puppet 或 SaltStack）可用于跨机器一致地创建用户。
+3、权限
+	①	文件权限
+		文件权限是Linux资源访问概念的核心，Linux中的一切或多或少都是文件【一切皆文件】。权限分为三种类型或范围【从窄到宽】：
+		Ⅰ	用户	文件所有者
+		Ⅱ	组		有一个或多个成员
+		Ⅲ	其他人	
+		有三种类型的访问：
+		Ⅰ	读（r）		对于普通文件，允许用户查看文件的内容。对于目录，允许用户查看目录中文件的名称。
+		Ⅱ	写（w）		对于普通文件，允许用户修改或删除文件。对于目录，允许用户创建，重命名和删除目录中的文件。
+		Ⅲ	执行（x）	对于普通文件，如果用户也具有该文件的读权限，则允许用户执行该文件。对于目录，允许用户访问目录中的文件信息，有效地允许他们进入该目录（cd）或列出其内容（ls）。
+		其他文件访问位【access bits】
+		s				应用于可执行文件的 setuid/setgid 权限。运行它的用户继承文件所有者或所属组的有效权限。
+		t				粘滞位【sticky bit】。仅与目录有关。如果设置，它将阻止非root用户删除其中的文件（除非该用户拥有该目录/文件）
+		Linux中还可以通过 chattr（更改属性）命令进行特殊设置。
+		》文件权限说明【ls -al】
+			-rw-r--r--. 1 miggi miggi   390 12月  5 18:34 Leanring_Modern_linux
+			①	文件模式【file mode】
+				Ⅰ	文件类型【-】
+				Ⅱ	文件所有者权限【rw-】
+				Ⅲ	文件所属组权限【r--】
+				Ⅳ	其他人的权限【r--】
+			②	硬链接数【1】
+			③	文件所有者【miggi】
+			④	文件所属组【miggi】
+			⑤	文件大小（bytes）【390】
+			⑥	上次修改时间戳【12月  5 18:34】
+			⑦	文件名
+		》文件类型
+			-			常规文件
+			b			块特殊文件
+			c			字符特殊文件
+			C			高性能（连续数据）文件
+			d			目录
+			l			符号连接
+			p			命名管道（使用 mkfifo 创建）
+			s			套接字文件
+			？			其他（未知）文件类型
+		》文件权限表示方式：
+			r（4）、w（2）、x（1）
+	②	进程权限
+		在运行时权限上下文中存在不同的相关用户ID（credenti(7) manual page【https://man7.org/linux/man-pages/man7/credentials.7.html】）：
+		Ⅰ	真实UID【Real UID】
+			真实UID是启动该进程的用户的UID。它代表人类用户的进程所有权。进程本身可通过 getuid(2) 获取其真实的UID，并且可以使用 stat -c "%u %g" /proc/$pid/ 进行查询。
+			如当普通用户【如，miggi】执行【passwd】命令时。通过【stat -c "%u %U %g" /proc/$pid/】会发现运行passwd的真实UID是0【root】。
+		Ⅱ	有效UID【Effective UID】
+			Linux内核使用有效UID来确定进程访问消息队列等共享资源时所拥有的权限。
+			在传统的 UNIX 系统上，它们还用于文件访问。 然而，Linux 之前使用专用的文件系统 UID 来获取文件访问权限。出于兼容性原因，仍支持此功能。进程可以通过 geteuid(2) 获取其有效 UID。
+		Ⅲ	已保存的设置用户ID【Saved set-user-ID】
+			保存的设置用户ID用于 suid 情况，其中进程可以通过在真实UID和保存的设置用户ID之间切换其有效UID来获取特权。
+			如，为了允许进程使用某些网络端口，它需要提升权限（如，以root身份运行）。进程可通过 getresuid(2) 获取其保存的设置用户ID。
+		Ⅳ	文件系统 UID【Filesystem UID】
+			这些特定于Linux的ID用于确定文件访问权限。最初引入此UID是为了支持文件服务器代表普通用户进行操作，同时将进程与所述用户的信号隔离的用例。
+			程序通常不会直接操作这个UID。内核会跟踪有效UID何时更改，并自动更改文件系统UID。这意味着文件系统UID通常与有效UID相同，但可以通过 setfsuid(2)进行更改。
+			注意，从技术上讲，自内核v2.0起不再需要此UID，但出于兼容性考虑，仍受支持。
+		最初，当通过 fork(2) 创建子进程时，它会继承其父进程UID的副本，并且在execve(2) 系统调用期间，会保留进程的真实UID，而有效UID和保存的设置用户ID可能会改变。
+		如，当运行passwd时，有效UID是您的UID【如1000】。现在，passwd启用了suid设置，这意味着当运行它时，有效UID时0【root】。还有其他方法可以影响有效UID，如使用chroot和其他沙箱技术。
+		POSIX 线程【https://en.wikipedia.org/wiki/Pthreads】要求进程中的所有线程都共享凭据。然而，在内核级别，Linux为每个线程维护单独的用户组凭据。
+		除了文件访问权限之外，内核还将进程UID用于其他用途，如：
+			①	建立发送信号的权限【如，确定当对某个进程ID执行 kill -9 时会发生什么】
+			②	调度和优先级的权限处理【如，nice】
+			③	检查资源限制
+		虽然在 suid 的背景下使用有效的 UID 进行推理可能很简单，但一旦功能发挥作用，它可能会更具挑战性。
+4、高级权限管理
+	①	功能【Capabilities】
+		在Linux中，与UNIX系统中的传统情况一样，root用户在运行进程时没有任何限制。换句话说，内核只区分两种情况：
+		Ⅰ	特权进程，绕过内核权限检查，有效UID为0（root）
+		Ⅱ	非特权进程，具有非零有效UID，内核对其进行权限检查
+		随着内核v2.2中功能系统调用的引入，这种二进制世界观发生了变化：传统上与root相关的特权现在被分解为可以在每个线程级别上独立分配的不同单元。
+		实际上，这个想法是正常进程的能力为零。可以为可执行文件（二进制文件和shell脚本）以及进程分配功能，以逐步添加执行任务所需的权限。
+		现在，注意：功能通常仅与系统级任务相关。即大多数时候，不一定依赖它们。一些更广泛使用的功能如下：
+			功能【Capability】			语义学【Semantics】
+			CAP_CHOWN					允许用户对文件的UID/GID进行任意更改
+			CAP_KILL					允许向属于其他用户的进程发送信号
+			CAP_SETUID					允许更改UID
+			CAP_SETPCAP					允许设置正在运行的进程的功能
+			CAP_NET_ADMIN				允许各种与网络相关的操作【如，接口配置】
+			CAP_NET_RAW					允许使用RAW和PACKET套接字
+			CAP_SYS_CHROOT				允许调用chroot
+			CAP_SYS_ADMIN				允许系统管理操作，包括挂载文件系统
+			CAP_SYS_PTRACE				允许使用 strace 调试进程
+			CAP_SYS_MODULE				允许加载内核模块
+		查看系统所有功能概览：
+			# capsh --print
+			Current: =ep
+			Bounding set =cap_chown,cap_dac_override,cap_dac_read_search,cap_fowner,cap_fsetid,cap_kill,cap_setgid,cap_setuid,cap_setpcap,cap_linux_immutable,cap_net_bind_service,cap_net_broadcast,cap_net_admin,cap_net_raw,cap_ipc_lock,cap_ipc_owner,cap_sys_module,cap_sys_rawio,cap_sys_chroot,cap_sys_ptrace,cap_sys_pacct,cap_sys_admin,cap_sys_boot,cap_sys_nice,cap_sys_resource,cap_sys_time,cap_sys_tty_config,cap_mknod,cap_lease,cap_audit_write,cap_audit_control,cap_setfcap,cap_mac_override,cap_mac_admin,cap_syslog,cap_wake_alarm,cap_block_suspend,cap_audit_read,cap_perfmon,cap_bpf,cap_checkpoint_restore
+			Ambient set =
+			Current IAB: 
+			Securebits: 00/0x0/1'b0 (no-new-privs=0)
+			 secure-noroot: no (unlocked)
+			 secure-no-suid-fixup: no (unlocked)
+			 secure-keep-caps: no (unlocked)
+			 secure-no-ambient-raise: no (unlocked)
+			uid=0(root) euid=0(root)
+			gid=0(root)
+			groups=0(root)
+			Guessed mode: UNCERTAIN (0)
+		查看当前进程【shell】的所有功能概览：
+			# grep Cap /proc/$$/status
+			CapInh: 0000000000000000
+			CapPrm: 000001ffffffffff
+			CapEff: 000001ffffffffff
+			CapBnd: 000001ffffffffff
+			CapAmb: 0000000000000000
+		可以使用 getcap 和 setcap 以细粒度的方式（即基于每个文件）管理功能。
+		功能有助于从“全有或全无”的方法过渡到基于文件的更细粒度的权限。
+	②	seccomp Profiles
+		安全计算模式【secure computing mode（seccomp）】是自2005年起提供的Linux内核功能。这种沙箱技术背后的基本思想是，使用名为 seccomp(2) 的专用系统调用，可以限制进程可以使用的系统调用。
+		可能会发现直接管理 seccomp 很不方便，但有一些方法可以轻松使用它。如，在容器环境中，Docker 和 Kubernetes 都支持 seccomp。
+	③	访问控制列表
+		借助于访问控制列表（ACLs），在Linux中拥有灵活的权限机制。ACL解决了传统权限的缺陷，因为它们允许向用户或不在用户组列表中的组授予权限。
+		可以使用 grep -i acl /boot/config* 来检查发行版是否支持 ACL 【输出中包含 POSIX_ACL=Y】。为了对文件系统使用 ACL，必须在挂载时使用 acl 选项启用它【见 acl 的文档参考】。
+5、良好的实践
+	以下是更广泛的访问控制背景下的一些安全“良好实践”。 其中一些可能更适用于专业环境。
+	①	最少权限
+		最小权限原则是指一个人或进程应该只拥有完成给定任务所需的权限。如，如果应用程序不写入文件，则它只需要读取访问权限。 在访问控制的上下文中，可以通过两种方式实践最小权限：
+		》通过数字模式使用显式权限比符号模式更好
+		》尽可能避免以root身份运行【优先考虑 sudo 提权】
+		注意，如果正在编写应用程序，则可以使用 SELinux 策略来限制仅访问选定的文件、目录和其他功能。 相比之下，默认的 Linux 模型可能会让应用程序访问系统上打开的任何文件。
+	②	避免 setuid
+		利用功能【capabilities】而不是依赖 setuid【为攻击者提供了一种接管系统的好方法】
+	③	审计【auditing】
+		审计是指以无法篡改结果日志的方式记录操作（以及执行这些操作的人员）。然后，可以使用此只读日志来验证谁在何时做了什么。
+6、扩展
+	①	通用【General】
+		》“A Survey of Access Control Policies”【https://www.cs.umd.edu/sites/default/files/scholarly_papers/ACrowell_1.pdf】
+		》Lynis【https://cisofy.com/lynis/】，审计和合规性测试工具
+	②	功能【Capabilities】
+		》“Linux Capabilities in Practice”【https://blog.container-solutions.com/linux-capabilities-in-practice】
+		》“Linux Capabilities: Making Them Work”【https://www.kernel.org/doc/ols/2008/ols2008v1-pages-163-172.pdf】
+	③	seccomp
+		》“A seccomp Overview”【https://lwn.net/Articles/656307/】
+		》“Sandboxing in Linux with Zero Lines of Code”【https://blog.cloudflare.com/sandboxing-in-linux-with-zero-lines-of-code/】
+	④	访问控制列表【ACLs】
+		》“POSIX Access Control Lists on Linux”【https://www.usenix.org/legacy/publications/library/proceedings/usenix03/tech/freenix03/full_papers/gruenbacher/gruenbacher_html/main.html】
+		》“Access Control Lists” via ArchLinux【https://wiki.archlinux.org/title/Access_Control_Lists】
+		》“An Introduction to Linux Access Control Lists (ACLs)” via Red Hat【https://www.redhat.com/sysadmin/linux-access-control-lists】
+
+
+
+				
+			
+
+			
+
+
+
+		
+
