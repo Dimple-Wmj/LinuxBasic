@@ -255,6 +255,16 @@ Managing Users and Groups
 		sudo visudo -f stash
 	这会创建【stash】文件。只需输入与 /etc/sudoers 中的条目不同的配置项，而不是复制整个文件。这是管理多个用户的一个很好的功能。 不要管理一个大的配置文件，而是将其分解为较小的每个用户文件。
 14、将 sudo 更改为不询问 Root 密码
+	有些Linux发行版（如openSUSE）要求在使用sudo提权时输入root用户的密码。
+	要设置 sudo 用户总是询问用户自己的密码，编辑【/etc/sudoers】文件并注释以下两行：
+		visudo
+		# Defaults targetpw
+		# ALL ALL=(ALL) ALL
+	在 openSUSE 和 Fedora 中，通过将 sudo 用户添加到 /etc/group 中的wheel组来创建具有完全root权限的用户。
+	保存更改并关闭文件后，更改立即生效。
+
+
+Managing Files and Directories
 
 
 
