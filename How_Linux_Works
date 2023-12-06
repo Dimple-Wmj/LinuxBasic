@@ -1,0 +1,56 @@
+
+System Configuration: Logging, System Time, Batch Jobs, and Users
+3、用户管理文件
+	Unix 系统允许多个独立用户。 在内核级别，用户只是数字（用户 ID），但由于记住名称比记住数字容易得多，因此在管理 Linux 时通常会使用用户名（或登录名）。
+	用户名仅存在于用户空间中，因此任何使用用户名的程序在与内核通信时都需要找到其相应的用户ID。
+	①	/etc/passwd 
+	该文件中每行代表一个用户，并有七个用冒号分隔的字段。字段分别是：
+		Login name:Password:User ID:Group ID:Real name(GECOS):Home directory:Shell
+	在大多数Linux系统中，密码不再实际存储在/etc/passwd文件中，而是/etc/shadow文件，/etc/shadow 文件格式与/etc/passwd类似，但普通用户没有shadow的读取权限，其中第二个字段是加密的密码。
+	Unix 密码永远不会以明文形式存储； 事实上，该字段不是密码本身，而是密码的派生。 在大多数情况下，从该字段获取原始密码非常困难。
+	Password字段中的x表示加密的密码存储在shadow文件中；*表示密码已禁用。如果Password字段为空，则无需密码即可登录。
+	/etc/passwd文件语法相当严格，不允许有任何注释或空行。
+	②	特殊用户
+	超级用户（root）其UID为0，GID为0。某些用户（如daemon）没有登录权限。nobody用户是低权限用户；某些进程已nobody身份运行【通常无法在系统上写入任何内容】。
+	无法登录的用户称为伪用户【pseudo-users】。尽管他们无法登录，但系统可以使用他们的用户 ID 启动进程。 出于安全原因，通常会创建诸如“nobody”之类的伪用户。
+	再次强调，这些都是用户空间约定。这些用户对内核没有特殊意义；对内核有特殊意义的唯一用户 ID 是超级用户的 0。可以授予nobody用户访问系统上所有内容的权限，就像访问任何其他用户一样。
+	③	/etc/shadow
+	Linux系统上的影子密码文件（/etc/shadow）通常包含用户认证信息，包括/etc/passwd中与用户对应的加密密码和密码过期信息。
+	引入shadow文件是为了提供一种更灵活（也许更安全）的密码存储方式。它包括一套库和使用程序，其中许多很快就被PAM（可插入身份验证模块）所取代。
+	PAM没有为Linux引入一组全新的文件，而是使用/etc/shadow，但不使用某些相关的配置，如/etc/login.defs。
+	④	操作用户和密码
+	普通用户使用passwd命令和其他一些工具与/etc/passwd交互。使用passwd更改密码。可以使用chfn和chsh分别更改真实名称和shell（shel必须在/etc/shells中列出）。这些都是suid-root可执行文件，因为只有超级用户才能更改/etc/passwd文件。
+	chfn和chsh可通过安装util-linux-user来获得。
+	》以超级用户身份更改/etc/passwd
+	由于 /etc/passwd 只是一个普通的纯文本文件，因此技术上允许超级用户使用任何文本编辑器进行更改。要添加用户，可以简单地添加适当的行并为用户创建主目录；要删除，可以执行相反的操作
+	然而，像这样直接编辑 passwd 是一个坏主意。 这不仅很容易犯错误，而且如果其他东西同时更改密码，还可能会遇到并发问题。 使用终端或 GUI 提供的单独命令对用户进行更改要容易得多（也更安全）。
+	例如，要设置用户的密码，请以超级用户身份运行 passwd user。 使用 adduser 和 userdel 分别添加和删除用户。
+	但，如果确实必须直接编辑该文件，使用vipw程序，该程序会在编辑/etc/passwd时备份并锁定它，作为额外的预防措施。要编辑/etc/shadow，使用vipw -s。
+	》vipw使用说明：
+		用法：vipw [选项]
+		
+		选项：
+		  -g, --group                   编辑 group 数据库
+		  -h, --help                    显示此帮助信息并退出
+		  -p, --passwd                  编辑 passwd 数据库
+		  -q, --quiet                   安静模式
+		  -R, --root CHROOT_DIR         chroot 到的目录
+		  -s, --shadow                  编辑 shadow 或 gshadow 数据库
+	⑤	使用组
+		Unix 中的组提供了一种在某些用户之间共享文件的方法。可以为特定组设置读取或写入权限位，排除其他人。此功能曾经很重要，因为许多用户共享一台计算机或网络，但近年来，随着工作站共享的频率降低，它变得不那么重要了。
+		/etc/group 文件定义组ID。/etc/group中的每一行都是一组用冒号分隔的字段，如：
+			Group name:Password:Group ID:Additional members
+		组密码	Unix 组密码很少被使用，也不应该使用它们（在大多数情况下，sudo 是一个不错的选择）。使用 * 或任何其他默认值。x 意味着 /etc/gshadow 中有相应的条目，这也几乎总是一个禁用的密码，用 * 或 ! 表示。
+		组ID	group文件中的GID必须唯一。该数字对应/etc/passwd中的用户组字段。
+		属于该组的用户的可选列表	除了此处列出的用户之外，其passwd文件条目这种具有相应组ID的用户也属于该组。以逗号分隔组员。
+4、getty和login
+	getty程序连接到终端并显示登录提示。在大多数Linux系统上，getty并不复杂，因为系统仅使用它来登录虚拟终端。在进程列表中，它通常看起来如下：
+		# ps ao args | grep getty
+		/sbin/agetty -o -p -- \u --noclear - linux
+	在许多系统上，甚至可能看不到 getty 进程，直到使用 CTRL-ALT-F1 之类的命令访问虚拟终端。 此示例显示agetty，这是许多Linux 发行版默认包含的版本。
+	输入登录名后，getty 会将自身替换为登录程序，并要求您输入密码。如果您输入正确的密码，login 会将其自身替换为您的 shell（使用 exec()）。 否则，会收到“登录不正确”消息。登录程序的大部分真实身份验证工作都是由 PAM 处理的。
+	现在知道 getty 和 login 的作用，但可能永远不需要配置或更改它们。事实上，甚至很少会使用它们，因为大多数用户现在要么通过图形界面（例如 gdm）登录，要么通过 SSH 远程登录，这两种方式都不使用 getty 或登录。
+
+
+			
+
