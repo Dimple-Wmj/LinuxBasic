@@ -265,6 +265,178 @@ Managing Users and Groups
 
 
 Managing Files and Directories
+	Linux 提供了强大的基本控制来访问具有可配置权限的文件和目录。每个文件和目录都有三级所有权，包括用户、组和其他；以及多级访问，包括读、写和执行。可以保护个人文件并控制谁有权访问它们。
+	每个文件都有三种所有权：所有者、所属组和其他用户。其中所有者是单一用户、所属组是单一组。
+	每个文件都有流中权限模式——读、写和执行，以及三种特殊模式：sticky bit、setuid和setgid。
+	文件权限控制哪些用户可以创建、读取、编辑或删除文件，以及哪些用户可以执行命令。特殊模式控制谁可以移动、删除或重命名文件，以及谁可以以提升的权限执行命令。 
+	目录权限控制哪些用户可以编辑或进入目录，以及哪些用户可以读取、编辑、添加或删除目录中的文件。 
+	注意：基本的 Linux 安全原则是使用最少的必要权限来完成工作。
+	在 Linux 系统上，root 用户（也称为超级用户）拥有至高无上的权力。root 几乎可以执行任何操作，包括编辑和删除其他用户的文件、进入任何目录以及运行任何命令。普通用户或非特权用户可以使用 sudo 或 su 命令暂时取得 root 权限。
+	每个用户都有一个唯一的标识（UID），并且至少属于一个组。组中的每个用户共享该组的权限。
+		# stat --format="%a:%A:%U:%G" /etc
+		755:drwxr-xr-x:root:root
+	命令输出以两种形式显示目录的模式或权限集：755:drwxr-xr-x。 755是八进制表示法，drwxr-xr-x是符号表示法。 这是表达同一模式的两种不同方式。
+	root:root是所有者和所属组。文件和目录可以有不同所有者和所属组。
+	除了读、写和执行权限外，文件还有三种特殊权限模式：sticky bit、setuid和setgid。
+	setuid和setgid模式将用户和组权限提升到文件所有者和所属组相同的权限。这些仅在特殊情况下使用，并且要非常谨慎地使用，因为权限升级是一个潜在的安全风险。
+	sticky bit【粘性位】可防止除文件所有者或具有root权限的任何人之外的其他人删除、重命名或移动目录中不属于它们的文件。
+1、创建文件和目录
+	使用 mkdir 命令创建目录。如，在当前目录下创建子目录：
+		mkdir -v presentations
+	使用 -p 选项递归创建目录，如：
+		mkdir -p presentations/2023/august
+	创建目录的同时设置目录权限：
+		mkdir -m 0700 /home/miggi/dog-memes
+	使用 touch 命令创建新文件：
+		touch /home/miggi/test.txt
+	使用 tree 命令查看目录结构：
+		# tree -L 1 /home/miggi
+		/home/miggi
+		├── github_passwd.txt
+		└── LinuxBasic
+
+		1 directory, 1 file
+	》扩展
+		man 1 mkdir
+		man 1 touch
+		man 1 yes
+		man 1 tree
+2、批量创建文件
+	通过大括号扩展【Brace Expansion】，可以批量创建一系列类似的文件。如：
+		touch file{00..99}
+		touch file{00..99..2}
+	使用 yes 命令快速填充文件。如：
+		yes This is a test file | head -c 5MB > testfile.txt
+	通过 for 循环快速填充多个文件。如：
+		for i in {00..99}; do
+			yes This is a test file | head -c 5MB > file$i
+		done
+3、相对路径和绝对路径
+	绝对路径总是以根【/】开始，如/boot和/etc。相对路径是相对于当前工作目录的，且没有前导斜杠【/】。某些应用程序和命令需要相对路径； 例如，rsync include 和 exclude 列表使用与要复制的目录相关的文件路径。
+4、删除文件和目录
+	使用 rm 命令删除文件和目录，但请谨慎使用。删除单一文件，输出详情：
+		rm -v test.ogg
+	使用 -i 选项在删除前进行确认：
+		rm -iv test.ogg
+	使用 -r 选项递归删除目录和其所有文件和子目录。如：
+		rm -rvi rehearsals
+	使用 -f 强制删除。
+5、复制、移动和重命名文件和目录
+	使用 cp 命令进行复制，使用 mv 命令移动或重命名。复制当前目录中的的文件到指定目录：
+		cp -v test1.txt test2.txt ~/subdir
+	使用 -r 递归复制目录中的文件和子目录：
+		cp -rv ~/music/songs2 /shared/archives
+	-r 仅复制目录及其文件。使用 --parents 选项保留父目录。如，复制song2和其内容，同时保留文件路径【/duchess/music/songs2】：
+		cp -rv --parents /duchess/music/song2 shows/
+	duchess 和 music 的其他内容不会复制，仅songs2和其内容被复制。
+	移动文件到其他目录：
+		mv -v test.ogg solo.flac ~/songs2/
+	》扩展
+		Ⅰ	cp
+			①	用法
+				cp [选项]... [-T] 源文件 目标文件
+				cp [选项]... 源文件... 目录
+				cp [选项]... -t 目录 源文件...
+				将指定<源文件>复制至<目标文件>，或将多个<源文件>复制至<目标目录>。
+			②	选项
+				-a, --archive                 	等于-dR --preserve=all
+				      --attributes-only 		仅复制属性而不复制数据      
+					  --backup[=CONTROL         为每个已存在的目标文件创建备份
+				  -b                            类似--backup 但不接受参数
+				      --copy-contents           在递归处理是复制特殊文件内容
+				  -d                            等于--no-dereference --preserve=links
+				  -f, --force                  	如果有已存在的目标文件且无法打开，则将其删除并重试（该选项在与 -n 选项同时使用时将被忽略）
+				  -i, --interactive            	覆盖前询问（使前面的 -n 选项失效）
+				  -H                           	跟随源文件中的命令行符号链接
+				  -l, --link                   	硬链接文件以代替复制
+				  -L, --dereference            	总是跟随源文件中的符号链接
+				  -n, --no-clobber              不要覆盖已存在的文件(使前面的 -i 选项失效)
+				  -P, --no-dereference          不跟随源文件中的符号链接
+				  -p                            等于--preserve=模式,所有权,时间戳
+				      --preserve[=属性列表      保持指定的属性(默认：模式,所有权,时间戳)，如果可能保持附加属性：上下文、链接、xattr 等
+				      --sno-preserve=属性列表   不保留指定的文件属性
+				      --parents                 复制前在目标目录创建来源文件路径中的所有目录
+				  -R, -r, --recursive           递归复制目录及其子目录内的所有内容
+				      --reflink[=WHEN]          控制克隆/CoW 副本。请查看下面的内如。
+				      --remove-destination      尝试打开目标文件前先删除已存在的目的地文件 (相对于 --force 选项)
+				      --sparse=WHEN             控制创建稀疏文件的方式
+				      --strip-trailing-slashes  删除参数中所有源文件/目录末端的斜杠
+				  -s, --symbolic-link           只创建符号链接而不复制文件
+				  -S, --suffix=后缀             自行指定备份文件的后缀
+				  -t,  --target-directory=目录  将所有参数指定的源文件/目录复制至目标目录
+				  -T, --no-target-directory     将目标目录视作普通文件
+				  -u, --update                  只在源文件比目标文件新，或目标文件不存在时才进行复制
+				  -v, --verbose         		显示详细的进行步骤
+				  -x, --one-file-system 		不跨越文件系统进行操作
+				  -Z                           	设置目标文件的 SELinux 安全上下文为默认类型
+				      --context[=上下文]       	类似 -Z；如果指定了上下文，则将 SELinux 或 SMACK 安全上下文设置为指定值
+		Ⅱ	mv
+			①	用法
+				mv [选项]... 源文件 目标文件
+				mv [选项]... -T 源文件... 目录
+				mv [选项]... -t 目录 源文件...
+			②	选项
+				      --backup[=CONTROL]       为每个已存在的目标文件创建备份
+				  -b                           类似--backup 但不接受参数
+				  -f, --force                  覆盖前不询问
+				  -i, --interactive            覆盖前询问
+				  -n, --no-clobber             不覆盖已存在文件
+				如果指定了-i、-f、-n 中的多个，仅最后一个生效。
+				      --strip-trailing-slashes 去掉每个源文件参数尾部的斜线
+				  -S, --suffix=SUFFIX          替换常用的备份文件后缀
+				  -t, --target-directory=目录  将所有<源文件>移动至指定的<目录>中
+				  -T, --no-target-directory    将参数中所有<目标文件>部分视为普通文件
+				  -u, --update                 仅在<源文件>比目标文件更新，或者目标文件
+				                               不存在时进行移动操作
+				  -v, --verbose                对正在发生的操作给出解释
+				  -Z, --context                将目标文件的 SELinux 安全上下文设置为默认类型
+6、使用 chmod 设置文件属性
+	有两种方式设置文件属性：
+		①	数字形式	八进制表示法有四个字段，可能最长使用最后三个字段【所有者权限、所属组权限和其他人权限】，很少使用第一个字段【保留，用于特殊模式】
+						r（4）、w（2）、x（1）；setuid（4）、setgid（2）、sticky bit（1）
+		②	符号形式	有四组用户【所有者（u）、所属组（g）、其他（o）和所有（a）】。有三种设置方式【=、+、-】。权限符号包括：rwxXst。权限值也可ugo表示。
+	Ⅰ	使用数字形式修改权限
+		①	设置文件权限
+			chmod -v 0600 file.txt
+		②	设置目录权限【目录必须设置可执行位】（使用cd命令或文件管理器进入目录是必要的）
+			chmod -v 0770 /shared
+			使用 -R 选项将相同的权限应用于目录的现有内容：
+			chmod -R 0775 /shared
+			将目录及其现有内容限制为目录所有者。目录中的文件和目录可能有不同的所有者和权限，但组和其他人仍然无法访问。
+			chmod 0700 /shared
+			常见的权限集合是给予所有者和组相同的权限【如读、写权限】，并排除其他：
+			chmod 0770 /shared
+		③	针对特殊用例使用特殊模式
+			特殊模式是粘性位【sticky bit】、setuid 和 setgid。 
+			粘滞位应用于包含多个用户拥有的文件的目录，以防止用户移动、重命名或删除不属于他们的文件：
+			chmod -v 1770 /home/duchess/shared
+			setuid应用于可执行文件【二进制文件】，以将运行该命令的任何用户提升到与所有者相同的权限：
+			chmod -v 4750 backup-script
+			将setgid应用于目录，以便该目录中所有新创建的文件都被分配到与该目录的所属组相同的组中：
+			chmod -v 2770 /home/duchess/shared
+			setgid 也可以应用于文件，将用户的有效组更改为与文件所有者相同的组。
+			setgid 和 setuid 有可能为入侵者或不值得信任的用户创建安全漏洞。最佳实践是仅当无法想出更安全的方法来完成想做的事情时才使用它们，例如使用组分配或 sudo。 
+			setuid 对于可执行文件很有用。 setgid 对于目录和文件很有用。
+			sticky bit仅用于目录。
+			粘性位的一个更具描述性的名称是限制删除位。 该位可防止非特权用户删除或重命名目录中的文件，除非他们拥有该文件。
+			setgid表示设置组用户标识，setuid表示设置用户标识。 这些用于将非特权用户的权限提升到与用户或组所有者相同的权限。如普通用户可以使用 passwd 命令修改其自身的密码。
+				stat --format=%a:%A:%U:%G /usr/bin/passwd
+		④	移除特殊模式
+			删除特殊模式与设置有点不同，需要使用额外的前导零。如：
+			chmod -v 00770 backup.sh
+			或使用前导等号替换前导零：
+			chmod -v =770 backup.sh
+	Ⅱ	使用符号形式修改权限
+		
+
+
+
+	
+
+
+
+
+		
 
 
 
