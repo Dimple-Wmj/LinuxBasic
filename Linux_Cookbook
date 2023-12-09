@@ -605,7 +605,259 @@ Backup and Recovery with rsync
 	如果要保留文件属性（例如所有权和权限），请使用支持文件属性的 Linux 文件系统（例如 Ext4、XFS 或 Btrfs）格式化备份驱动器（请参阅第 11 章）。 FAT 文件系统不保留所有权或权限。
 	密切关注备份运行需要多长时间。 如果它花费的时间比预定的备份间隔长，cron将按计划开始下一次备份，然后就会出现混乱。
 5、	使用 rsync 进行本地备份
+	rsync 使本地和远程文件系统保持同步。rsync 快速高效，因为它仅传输文件中的更改。备份本地用户主目录：
+		rsync -av ~ /media/duchess/2tbdisk/
+	可以在空格分隔的列表中指定两个或多个目录以传输到目标目录：
+		rsync -av ~/arias ~/overtures /media/duchess/2tbdis/duchess/
+	使用 --dry-run 选项安全地测试 rsync 命令，而无需复制任何文件：
+		rsync -av --dry-run ~/Music/scores ~/Music/woodwinds /media/duchess/2tbdisk/duchess/
+	如果在源目录中删除任何文件，rsync不会从目标目录中删除对应文件，除非使用【--delete】选项：
+		rsync -av --delete /home/duchess /media/duchess/2tbdisk/
+	如果安装了网络文件系统（如NFS或Samba），使用【-x】选项仅从本地文件系统复制，而不是递归到远程文件系统。
+	如果在源中添加尾随的斜杠【如~/、/home/duchess/】，仅复制目录的内容，而不是目录本身。省略尾部的【/】会传输目录及其内容。尾随斜杠仅作用于源目录，不会影响目标目录。
+	》扩展【rsync命令】
+		①	用法
+			本地：
+				rsync [选项]... SRC... [DEST]
+			通过远程shell访问：
+				拉取：
+					rsync [选项]... [USER@]HOST:SRC... [DEST]
+				推送：
+					rsync [选项]... SRC... [USER@]HOST:DEST
+			通过rsync守护进程访问：
+				拉取：
+					rsync [选项]... [USER@]HOST::SRC... [DEST]
+					rsync [选项]... rsync://[USER@]HOST[:PORT]/SRC... [DEST]
+				推送：
+					rsync [选项]... SRC... [USER@]HOST::DEST
+					rsync [选项]... SRC... rsync://[USER@]HOST[:PORT]/DEST
+		②	选项
+			-v, --verbose					增加详情
+				--info=FLAGS				细粒度的信息详情 									--debug=FLAGS				细粒度的调试详情
+				--stderr=e|a|c				更改标准错误的输出模式（默认：errors） 				-q,	--quiet						抑制非错误消息
+				--no-motd					抑制守护进程模式的MOTD
+			-c, --checksum					基于校验和跳过，而不是修改时间&大小
+			-a, --archive					归档模式；等于 -rlptgoD（没有-H，-A，-X）
+				--no-OPTION					关闭隐含选项（如，--no-D）
+			-r, -recusive					递归进目录
+			-R, --relative					使用相对路径名 										--no-implied-dirs			不发送 --relative 隐含的目录
+			-b, --backup					创建备份（见 --suffix & --backup-dir） 				--backup-dir=DIR			将备份制作为基于 DIR 的层次结构
+				--suffix					备份后缀（默认 ~ 不带（w/o）--backup-dir）
+			-u, --update					跳过接收端较新的文件
+				--inplace					就地【in-place】更新目标文件
+				--append					将数据附加到较短的文件中
+				--append-verify				在文件校验和中追加 w/old 数据
+			-d, --dirs						不递归传输目录
+				--mkpath					创建目的地的路径组件
+			-l, --links						复制符号链接为符号链接 								-L, --copy-links				将符号链接转换为引用文件/目录
+				--copy-unsafe-links			仅传输“不安全”的符号链接
+				--safe-links				忽略指向树【tree】外部的符号链接 						--munge-links				破环符号链接，使其安全且不可用
+			-k, --copy-dirlinks				将符号链接转换为引用目录 							-K, --keep-dirlinks				treat symlinked dir on receiver as dir
+			-H, --hard-links				保留硬链接
+			-p, --perms						保留权限 											-A, --acls						保留ACLs（隐含--perms）
+			-E, --executability				保留可执行性 										-X, --xattrs					保留扩展属性
+				--chmod=CHMOD				指定文件权限 											--chown=USER:GROUP			设置文件所有权
+			-o, --owner						保留所有者（仅限超级用户） 							-g, --group						保留所属组
+				--devices					保留设备文件（仅限超级用户） 							--copy-devices				将设备文件复制为常规文件
+				--specials					保留特殊文件 										-D								与 --devices --specials 相同
+			-t, --times						保留修改时间 										-U, --atimes					保留访问（使用）时间
+				--open-noatime				避免更改打开文件的atime 							-N, --crtimes					保留创建时间
+			-O, --omit-dir-times			从 --times 中忽略目录 								-J, --omit-link-times			从 --times 中忽略符号链接
+				--super						接收端尝试超级用户活动
+				--fake-super				使用 xattrs 存储/恢复特权属性
+			-S，--sparse					将空值序列转换为稀疏块
+				--preallocate				在写入目标文件前分配它们
+				--write-devices				将设备以文件写入（隐含 --inplace）
+			-n, --dry-run					不做任何更改，进行试运行
+			-W, --write-whole				复制整个文件（不使用 delta-xfer 算法）
+				--checksum-choice=STR		选择校验和算法（aka --cc）
+			-x, --no-file-system			不要跨越文件系统边界
+			-B, --block-size=SIZE 			强制固定的校验和块大小
+			-e, --rsh=COMMAND				指定使用的远程shell
+				--rsync-path=PROGRAM		指定在远程机器上运行的rsync
+				--existing					跳过在接收端新建文件
+				--remove-source-files		发送端删除同步文件（非目录）
+				--del						--delete-during 的别名 									--delete					从目标目录中删除无关文件
+				--delete-before				接收者在传输之前删除									--delete-after				接收端在传输之后删除
+				--delete-delay				find deletions during, delete after 					--delete-during				接收端在传输期间删除
+				--delete-excluded			从目标目录中删除排除的文件 								--delete-missing-args		从目标中删除缺少的源参数
+				--ignore-missing-args		忽略缺少的源参数而不出现错误 							--ignore-errors				即使有错误也删除
+				--force						强制目录删除，即使非空
+				--max-delete=NUM			不要删除超过NUM个文件
+				--max-size=SIZE				不要传输超过SIZE大小的文件								--min-size=SIZE				不要传输小于SIZE大小的文件
+				--max-alloc=SIZE			更改与内存分配相关的限制
+				--partial					保留部分传输的文件										--partial-dir=DIR			将部分传输文件放到DIR中
+				--delay-updates				将所有更新的文件放在最后
+			-m, --prune-empty-dirs			从文件列表中删除空目录链
+				--numeric-ids				不要按用户/组名映射uid/gid值
+				--usermap=STRING			自定义用户名映射 										--groupmap=STRING			自定义组名映射
+				--timeout=SECONDS			设置I/O超时【秒】
+				--contimeout=SECONDS		设置守护进程连接超时【秒】
+			-I, --ignore-times				不要跳过时间和大小匹配的文件
+				--size-only					跳过大小匹配的文件
+			-@, --modify-window=NUM			设置修改时间比较的精度
+			-T, --temp-dir=DIR				在DIR目录中创建临时文件
+			-y, --fuzzy						如果没有目标文件，则查找类似文件作为基础
+				--compare-dest=DIR			还比较相对于DIR的目标文件
+				--copy-dest=DIR				...，还包括未更改文件的副本
+				--link-dest=DIR				未更改时，硬链接到DIR中的文件
+			-z, --compress					传输时，压缩文件数据
+				--compress-choice=STR		选择压缩算法（aka --zc）
+				--skip-compress=LIST		跳过LIST列表包含的后缀的文件的压缩
+			-C, --cvs-exclude				以与 CVS 相同的方式自动忽略文件
+			-f, --file-filter=RULE			添加文件过滤规则【RULE】
+			-F								same as --filter='dir-merge /.rsync-filter'
+					                        repeated: --filter='- .rsync-filter'
+				--exclude=PATTERN			排除匹配模式【PATTERN】的文件 							--exclude-from=FILE			从文件【FILE】中读取排除模式
+				--include=PATTERN			包含匹配模式【PATTERN】的文件 							--include-from=FILE			从文件【FILE】中读取包含模式
+				--files-from=FILE			从文件【FILE】中读取源文件名列表
+			-0, --from0						all *-from/filter files are delimited by 0s
+			-s, --protect-args				no space-splitting; wildcard chars only
+				--copy-as=USER[:GROUP]		指定复制的用户和可选组
+				--address=ADDRESS			将传出套接字的地址绑定到守护进程
+				--port=PORT					指定双冒号备用端口号
+				--socketopt=OPTIONS			指定自定义TCP选项
+				--blocking-io				为远程shell使用阻塞I/O
+				--outbuf=N|L|B				将缓冲设置为None、Line或Block
+				--stats						提供一些文件传输统计信息
+			-8, --8-bit-output				在输出中保留高位字符未转义
+			-h, --human-readable			以易读格式输出数字
+				--progress					在传输时显示进度
+			-P								与 --partial --progress相同
+			-i, --itemize-changes			输出所有更新的更改摘要
+			-M, --remote-option=OPT			仅发送OPTION到远程端
+				--out-format=FORMAT			输出更新使用指定格式【FORMAT】
+				--log-file=FILE				将正在做的事情记录到指定的文件【FILE】中
+				--password-file=FILE		从文件【FILE】中读取守护进程访问密码
+				--early-input=FILE			use FILE for daemon's early exec input
+				--list-only					列出文件而不是复制它们
+				--bwlimit=RATE				限制套接字I/O带宽
+				--stop-after=MINS			MINS 分钟过去后停止 rsync 								--stop-at=y-m-dTh:m			在指定时间点停止rsync
+				--write-batch=FILE			将批量更新写入文件【FILE】
+				--only-write-batch=FILE		类似于 --write-batch 但不更新【w/o】目标
+				--read-batch=FILE			从文件【FILE】读取批量更新
+				--protocol=NUM				强制使用较旧的协议版本
+				--iconv=CONVERT_SPEC		请求文件名的字符集转换
+				--checksum-seed=NUM			设置 块/文件 校验和种子（高级）
+			-4, --ipv4						倾向于 IPv4											-6, --ipv6						倾向于 IPv6
+6、使用 rsync 通过 SSH 进行安全地远程文件传输
+	将文件传输到其他机器上时，rsync 默认使用 SSH。远程主机上必需运行SSH服务器，本机上要有SSH客户端。如：
+		rsync -av ~/Music/arias empress@remote.example.com:songs/
+	如果目标目录不存在，rsync会创建它。身份验证和传输均通过SSH加密。用户在要将文件传输到地所有计算机上都需要shell账号。
+7、从备份中排除文件
+	使用 --exclude 选项从源中排除文件。如：
+		rsync -av --exclude=lho-perduta.wav ~/Music/arias /media/duchess/2tbdisk/duchess/Music/
+	注意，如果源目录中有多个文件与排除的文件同名，则所有这些文件都将被排除。如果不想排除重复项，需要明确指定是哪一个。如：
+		rsync -av --exclude=arias/lho-perduta.wav ~/Music/arias /media/duchess/2tbdisk/duchess/Music/
+	通过将多个文件括在大括号中来排除多个文件，并用引号和逗号分隔。等号和大括号之间不能有空格。如：
+		rsync -av --exclude={"arias/lho-perduta.wav","non-mi-dir.wav","un-bel-di-vedremo.flac"} ~/Music/arias /media/duchess/2tbdisk/duchess/Music/
+	排除目录的工作方式与排除文件相同，可以在排除列表中混合文件和目录。如：
+		rsync -av --exclude={"soprano/","tenor/","non-mi-dir.wav"} ~/Music/arias /media/duchess/2tbdisk/duchess/Music/
+	rsync 传输中的根目录是传输文件的顶级目录【如，~/Music/arias】。rsync检查根目录中的所有文件和目录，并嫁给你它们与排除指令进行比较，rsync称之为“模式”。
+	根据根目录中的文件和目录检查模式，从根开始并沿着目录层次结构向下进行。每次匹配模式时，都会将其排除在传输之外。
+8、包含指定文件到备份
+	--include 操作不同于 --exclude，因为它不真的意味着“包含”，而是“不排除”。它需要两个额外的选项：【--include=*/】和【--exclude='*'】。如：
+		rsync -av --include=*/ --include=lho-perduta.wav --exclude='*' ~/Music/arias /media/duchess/2tbdisk/duchess/Music/
+	可以传输文件列表。如：
+		rsync -av --include=*/ --include={'lho-perduta.wav','non-mi-dir-wav','un-bel-di-vedremo.flac'} --exclude='*' ~/Music/arias /media/duchess/2tbdisk/duchess/Music/
+	等号和大括号之间不能有空格，逗号和单引号之间不能有空格。如果源目录中的不同位置有多个同名文件，rsync 将传输所有这些文件。
+	使用 -m, --prune-empty-dirs 选项可防止复制空目录。如：
+		rsync -avm --cinlude=*/ --include=soprano/lho-perduta.wav --exclude='*' ~/Music/arias /media/duchess/2tbdisk/duchess/Music/
+	》说明：
+		①	--include=*/		告诉 rsync 遍历整个源目录
+		②	--include=[files]	意味着不排除这些文件
+		③	--exclude='*'		告诉 rsync 排除所有未包含的内容
+	注意：所有文件路径都相对于源目录，而不是系统的根目录。
+9、使用包含文件管理包含
+	通过 --files-from 选项 指定要包含的文件列表【不必担心以正确的顺序获取它们，也不必担心使用rsync的过滤符号，只需要包含想要的任何文件和目录的简单列表即可】。文件中每一项都必须相对于源目录。如
+		# include file list 【include-list.txt】所有项都是相对于源目录【/home/duchess】。
+		# 
+		/Documents/compositions/jazz/
+		/Documents/schedule.odt
+		/Videos/concerts/
+		.config
+		.local
+		/Music/courses/bassoon.avi</strong>
+		[...]
+	rsync -av ~ --files-from ~/include-list.txt duchess@remote.example.com:/backups/
+	这是维护要备份的文件和目录列表的最简单方法。 没有排除，没有通配符，只有一个干净易懂的列表。当使用【~】表示主目录时，省略【--files-from】中的等号。
+10、使用排除文件管理包含和排除
+	排除文件提供了更大的灵活性，并且包含了包含和排除。【每一项都必须从包含源根开始。如：
+			# exclude file list
+			# 
+			# include home directory
+			+ /duchess/
+			#
+			# include .config and .local, exclude all other files
+			+ /duchess/.config
+			+ /duchess/.local
+			- /duches/*
+			# 
+			# include jazz/, exclude all other files in Documents
+			+ /duchess/Documents/
+			+ /duchess/Documents/compositions/
+			+ /duchess/Documents/compositions/jazz/
+			- /duchess/Documents/compositions/*
+			- /duchess/Documents/*
+			#
+			# include schedule.odt, include all .ogg filesin arias/, exclude all other files in Music
+			+ /duchess/Music/
+			+ /duchess/Music/arias/
+			+ /duchess/Music/arias/.odt
+			+ /duchess/Music/arias/*.ogg
+			- /duchess/Music/arias/*
+			- /duchess/Music/*
+			#
+			# include courses/, exclude all other files in Videos
+			+ /duchess/Videos/
+			+ /duchess/Videos/courses/
+			- /duchess/Videos/*
+			# 
+			# exclude everything else
+			- /duchess/*
+		rsync -av ~ --exclude-from=/home/duchess/exclude-list.txt /media/duchess/2tbdisk/
+	行与行之间不能有空格，注释 (#) 可用于提醒每个部分的用途以及添加一些空格。在包含的前面加上加号，在排除的前面加上减号。
+	包含必须始终放在首位。必须精确定义每个包含/排除。包含必须按其目录层次结构顺序列出，其中包含所有子目录。
+11、限制 rsync 带宽使用
+	大文件传输会占用大量网络带宽并降低速度。使用 --bwlimit 选项可以限制 rsync 的带宽使用。--bwlimit 单位是 kilobits。如：
+		rsync -bwlimit=512 -ave ssh ~/Music/arias empress@laptop:songs/
+12、构建 rsyncd 备份服务器
+	以守护进程模式运行rsync，这样就可以不需要服务器【备份】上的登录账号，而是使用rsync 自己的访问控制和用户授权来控制对 rsync 归档的访问。
+	》注意【仅限 LAN 使用】
+		这仅适合 LAN 使用，不适用于不受信任的网络，因为 rsync 守护程序不会加密身份验证或文件传输。 对于加密传输，需要 OpenVPN。
+	rsync 必须安装在所有机器上。rsyncd运行在服务器【备份】，客户使用 rsync 命令连接到服务器。
+	在备份服务器上，编辑或创建 /etc/rsyncd.conf 以创建 定义归档的 rsync 模块。如：
+			# modules
+			[backup]
+			  path = /backups
+			  comment = "server1 public archive"
+			  list = yes
+			  read only = no
+			  use chroot = no
+			  uid = 0
+			  gid = 0
+	创建 /backups 目录，并设置正确的权限【防止任何有权访问服务器的人进行未经授权的访问】。如：
+		mkdir -m 0700 /backups
+	启动 rsyncd 守护进程：
+		①	通过 systemctl
+			systemctl start rsyncd.service
+		②	通过 rsync 命令
+			rsync --daemon
+	测试 rsyncd 是否正在侦听和接受连接：
+		rsync localhost::
+	测试文件备份：
+		rsync -av test.txt 192.168.3.12::backup
+
+
+
 	
+
+
+
+	
+
+
+
 
 
 
