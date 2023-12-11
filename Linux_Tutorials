@@ -1,0 +1,26 @@
+一、sshd
+	①	修改sshd 监听端口
+		》修改 sshd 配置文件【/etc/ssh/sshd_config】
+			# Port 22
+			Port 2022
+		》重启 sshd
+			systemctl restart sshd
+		》Selinux配置
+			如果重启 sshd 失败，通过 journalctl -xeu sshd.service 查看日志：【error: Bind to port 2022 on 0.0.0.0 failed: Permission denied.】。
+			Ⅰ	sshd 最近被重新配置为使用其他和/或非默认网络端口。默认，sshd配置为使用 22 。
+				grep ssh /etc/services
+			Ⅱ	SELinux默认启用。同样期望并强制sshd独占使用网络端口 22 。
+				如果重新配置 sshd 以利用其他和/或非默认端口，SELinux 会阻止使用该端口，从而导致观察到的权限被拒绝错误。
+				》查看当前SELinux允许 sshd 监听的端口：
+					semanage port -l | grep ssh
+				》配置SELinux允许 sshd 使用其他端口【如，2022】
+					semanage port -a -t ssh_port_t -p tcp 2022
+				》补充【semanage command not found】：
+					dnf provides [/usr/sbin|*/]semanage
+					dnf whatprovides [/usr/sbin|*/]semanage
+					dnf install policycoreutils-python-utils 
+		》配置 firewalld
+			firewall-cmd --list-services
+			firewall-cmd --zone=public --permanent --remove-service=ssh
+			firewall-cmd --zone=public --permanent --add-port=2022/tcp
+			firewall-cmd --reload
