@@ -1430,6 +1430,151 @@ firewalld 概述
 	区域 target 定义了不匹配任何规则的数据包的默认操作。target包含四种值：default、ACCEPT、REJECT、DROP。
 
 
+Managing Local Name Services with Dnsmasq and the hosts File
+	Dnsmasq【https://thekelleys.org.uk/dnsmasq/doc.html】是一款出色的LAN名称服务服务器，包括域名系统（DNS）和动态主机发现协议（DHCP）。Dnsmasq还提供BOOTP、PXE和TFTP，用于从网络服务器进行网络引导和安装操作系统。
+	Dnsmasq支持IPv4和IPv6，提供本地DNS缓存，并充当存根解析器【stub resolver】。
+	Dnsmasq专为LAN名称服务而设计。它是轻量级的并且配置简单，特别是与占主导地位的DNS服务器 BIND 相比。
+	Dnsmasq 和 /etc/hosts 可以很好地协同工作。 Dnsmasq 将 /etc/hosts 中的条目读取到 DNS 中。
+	Dnsmasq中的DHCP服务器自动与DNS集成。Dnsmasq为DHCP客户端创建DNS条目所需的做的就是配置DHCP客户端将其主机名发送到DHCP服务器，这是大多数Linux发行版中的默认设置。
+	DNS服务器有四种类型：递归解析器、根名称服务器、顶级域（TLD）名称服务器和权威名称服务器。
+	递归解析器【recuisive resolvers】应答DNS请求。存根解析器【stub resolver】（如Dnsmasq和systemd-resolved）将其无法应答的任何请求从其缓存转发到上游解析器。
+	访问网站时，递归解析器通过查询其他三种类型的 DNS 服务器来查找该网站的 DNS 信息。递归解析器缓存此信息以使其更快可用。 ISP 的名称服务器以及 OpenDNS、Cloudflare 和 Google Public DNS 等服务都是递归解析器。
+	根名称服务器有 13 种类型，分布在全球各地，目前有数百个根名称服务器。 根服务器接受来自递归解析器的查询，然后根服务器根据顶级域名将请求定向到适当的 TLD 服务器：.com、.net、.org、.me、.biz、.int 、.biz、.gov、.edu 等。 
+	互联网名称与数字地址分配机构（ICANN）负责监督所有这些服务器和域。
+	权威名称服务器是域的源记录，由域所有者控制。Dnsmasq可以作为权威名称服务器，但建议使用BIND【见 man 8 dnsmasq】
+	》补充
+		Linux发行版仍在从旧版resolveconf过渡到NetworkManager和systemd-resolved，后者长期以来一直是Linux上的默认DNS解析器【这给用户带来了一些麻烦，因为不断的变化以及各种发行版以不同的速度进行转换】。
+		不需要在Dnsmasq服务器上运行systemd-resolved，因为他将于Dnsmasq竞争以控制系统的存根DNS服务器。
+1、简单名称解析【/etc/hosts】
+	可以通过 /etc/hosts 文件添加静态名称解析条目。如：
+		127.0.0.1 localhost
+		::1 localhost ip6-localhost ip6-loopback
+		192.168.42.1 host1
+		192.168.43.2 hsot2
+	/etc/hosts 也管理域名，让局域网拥有一个炫酷的域名【首先输入IP地址，然后输入完全限定域名（FQDN），最后输入主机名】：
+		127.0.0.1 localhost
+		::1 localhost ip6-localhost ip6-loopback
+		192.168.42.1 host1.sqr3l.nut host1
+	/etc/hosts 中可以同时拥有共享和私有条目。想要共享的任何内容都必须复制到所有相关主机。主机文件中未复制到其他主机的任何其他内容仅适用于个人。
+	注意：127.0.0.1 localhost 和 ::1 localhost ip6-localhost ip6-loopback是必需的。它们被分配给环回设备，这是Linux系统用来与其自身通信的特殊虚拟网络接口。
+	环回设备的虚拟网络接口为lo。使用 ip 命令查看：
+		# ip addr show dev lo
+		1: lo: <LOOPBACK,UP,LOWER_UP> mtu 65536 qdisc noqueue state UNKNOWN group default qlen 1000
+		    link/loopback 00:00:00:00:00:00 brd 00:00:00:00:00:00
+		    inet 127.0.0.1/8 scope host lo
+		       valid_lft forever preferred_lft forever
+		    inet6 ::1/128 scope host 
+		       valid_lft forever preferred_lft forever
+	系统不需要物理网络接口即可使环回设备正常工作。使用 hostname 命令确认配置是否正确。检查计算机的主机名：
+		# hostname
+	查看 FQDN：
+		# hostname -f
+	查看域名：
+		# hostname -d
+	/etc/hosts 不能很好地扩展，但对于小型网络来说，它可能是本地 DNS 所需要的全部。
+	当运行LAN Dnsmasq服务器时，Dnsmasq服务器上的/etc/hosts中的所有条目都将应用于所有Dnsmasq客户端。Linux有多个DNS管理器，首先读取 /etc/hosts 。该顺序在/etc/nsswitch.conf文件中的主机行设置。如：
+		# grep ^hosts /etc/nsswitch.conf
+		hosts:      files dns myhostname
+	其中 files 是 /etc/hosts。dns 是可用的DNS服务器。应该将 fils dns 首先放在 Dnsmasq 服务器上。
+	》扩展
+		man 5 hosts
+		man 5 nsswitch.conf
+3、查找网络中的所有DNS和DHCP服务器
+	如果想知道LAN上除了Dnsmasq服务器之外是否还有任何DNS和DHCP服务器。使用nmap探测LAN【如，在本地网络中搜索所有开放的 TCP 端口，并找到开放的 TCP 端口 53，该端口由 DNS 使用。】
+		# nmap --open 192.168.3.0/24
+		Starting Nmap 7.92 ( https://nmap.org ) at 2023-12-12 19:28 CST
+		Nmap scan report for 192.168.3.1
+		Host is up (0.0078s latency).
+		Not shown: 997 closed tcp ports (reset)
+		PORT    STATE SERVICE
+		53/tcp  open  domain
+		80/tcp  open  http
+		443/tcp open  https
+		MAC Address: 14:51:20:94:4F:87 (Huawei Device)
+	默认，nmap仅查询TCP端口。DNS服务器监听TCP和UDP 53，DHCP监听 UDP 67。查询指定端口【UDP 53 和 67】：
+		# nmap -sU -p 53,67 192.168.3.0/24
+		Starting Nmap 7.92 ( https://nmap.org ) at 2023-12-12 19:32 CST
+		Nmap scan report for 192.168.3.1
+		Host is up (0.0028s latency).
+		
+		PORT   STATE         SERVICE
+		53/udp open|filtered domain
+		67/udp open|filtered dhcps
+		MAC Address: 14:51:20:94:4F:87 (Huawei Device)
+	搜索网络中所有打开的TCP和UDP端口：
+		# nmap -sU -sT 192.168.3.0/24
+	注意：这可能需要一定时间，将获得网络中所有已启动主机上的活动服务的列表，包括在非标准端口上运行的任何服务。
+	端口扫描时要非常小心，并且仅在您有权限的网络上使用它。 端口扫描其他网络通常被视为敌对行为，就像正在探测要利用的漏洞一样。多个名称服务器可能会导致冲突。最好了解用户是否正在运行任何服务。
+4、安装 Dnsmasq
+	①	安装 dnsmasq 包
+		dns install dnsmasq
+	②	如果Dnsmasq服务器没有静态IP地址，为其指定一个静态IP地址。使用 nmcli 查找活跃连接：
+		# nmcli connection show --active
+		NAME   UUID                                  TYPE      DEVICE 
+		ens33  19c4fb60-d11b-319a-9ca9-2a2d3bdd5749  ethernet  ens33  
+		lo     7c3c4bc2-e502-4054-9df0-79f0dc9c3db9  loopback  lo
+	③	分配希望DNS服务器使用的静态IP地址，使用NAME来识别正确的连接
+		# nmcli con mod "ens33" ipv4.address "192.168.3.10/24" ipv4.gateway "192.168.3.1" ipv4.method "manual"
+	④	重启 NetworkManager：
+		# systemctl restart NetworkManager.service
+	⑤	检查是否正在运行 systemd-resolved.service
+		# systemctl status systemd-resolved.service
+		》补充
+			systemd 在不同Linux中实现方式不同。如，openSUSE Leap 15.2 不适用systemd-resolved.service，因此不必进行任何systemd更改即可启用Dnsmasq来控制LAN DNS。
+			Fedora 33 及更改版本和Ubuntu 17.04及更高版本运行systemd-resolved.service，并且应在Dnsmasq服务器上禁用它。
+5、让 systemd-resolved 和 NetworkManager 与 Dnsmasq 配合良好
+	systemd-resolved 和 NetworkManager 与 Dnsmasq冲突。检查 systemd-resolved.service是否正在运行：
+		# systemctl status systmed-resolved.service
+	systemd-resolved.service适合为客户端计算机提供stub【存根】DNS解析器，但不适用于DNS服务器，应禁用它：
+		# systemctl stop systemd-resolved.service
+		# systemctl disable systemd-resolved.service
+	查看 /etc/resolve.conf【应该是一个符号连接，由systemd-resolve.service管理】。移除systemd-resolve.service的控制【删除符号连接，并创建同名的resolve.conf文件】。
+	现在/etc/resolve.conf】由 NetworManager管理。打开 NetworkManager 配置文件，查看【[main]】部分，设置【dns=none】：
+	在 /etc/resolv.conf 中输入 Dnsmasq 服务器的 IPv4 和 IPv6 本地主机地址以及本地域（如果有的话）。如：
+		search miggi.nut
+		nameserver 12.7.0.0.1
+		nameserver ::1
+	然后重新启动并配置新的Dnsmasq安装。
+	NetworkManager 和 systemd-resolved 在客户端计算机上非常有用。 在 Dnsmasq 服务器上，必须控制 /etc/resolv.conf，并且 Dnsmasq 应该是唯一的存根解析器。
+	》扩展
+		man 8 systemd-resolved.service
+		man 8 networkmanager
+6、为 LAN DNS配置Dnsmasq
+	在 /etc/hosts中输入的任何主机都需要静态IP地址，Dnsmasq会自动将它们输入到DNS中。至少输入 Dnsmasq 服务器。如：
+		127.0.0.1   localhost localhost.localdomain localhost4 localhost4.localdomain4
+		::1         localhost localhost.localdomain localhost6 localhost6.localdomain6
+		192.168.3.12 dns-server
+		192.168.3.
+	重命名默认配置文件【/etc/dnsmasq.conf】，以便可以从新的空文件开始，并使用原始文件作为参考。
+	复制以下配置，将第二个listen-address替换为自己服务器的IP地址，并使用自己的域名。 上游名称服务器是 OpenDNS，可以使用任何想要的上游名称服务器。默认情况下，Dnsmasq会查找 /etc/resolv.conf，但明确说明也没有什么坏处：
+	新的 /etc/dnamasq.conf 文件内容如下：
+		# global options
+		resolv-file=/etc/resolv.conf
+		domain-needed
+		bogus-priv
+		expand-hosts
+		domain=miggi.nut
+		local=/miggi.nut/
+		listen-address=127.0.0.1
+		listen-address=192.168.3.12
+
+		# upstream name servers
+		server=208.67.222.222
+		server=208.67.222.202
+	进行Dnsmasq 语法检查：
+		# dnsmasq --test
+		dnsmasq: syntax check OK.
+	语法检查器不会发现配置错误，只会发现拼写错误。启动Dnsmasq，如果出现错误则无法启动。重启 dnsmasq.service:
+		systemctl restart dnsmasq.service
+		systemctl status dnsmasq.service
+	在 Dnsmasq 服务器上使用 nslookup 用服务器主机名和FDQN进行测试：
+		nslookup dns-server
+		
+
+
+
+		
+
 		
 		
 
