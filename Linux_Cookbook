@@ -1568,16 +1568,257 @@ Managing Local Name Services with Dnsmasq and the hosts File
 		systemctl restart dnsmasq.service
 		systemctl status dnsmasq.service
 	在 Dnsmasq 服务器上使用 nslookup 用服务器主机名和FDQN进行测试：
-		nslookup dns-server
+		# nslookup dns-server
+		Server:         127.0.0.1
+		Address:        127.0.0.1#53
 		
+		Name:   dns-server.miggi.nut
+		Address: 192.168.3.10
+	
+		# nslookup dns-server.miggi.nut
+		Server:         127.0.0.1
+		Address:        127.0.0.1#53
+		
+		Name:   dns-server.miggi.nut
+		Address: 192.168.3.10
+		
+		# nslookup 192.168.3.10
+		10.3.168.192.in-addr.arpa       name = dns-server.miggi.nut.
+	使用 ss 命令验证监听端口：
+		ss -lp "sport = :domain"
+	使用 -r 选项可以查看主机名而不是IP地址。
+	》说明
+		domain-needed		阻止 Dnsmasq 将普通主机名的查询转发到上游名称服务器。如果LAN域域公共域名相同，这可防止对LAN地址的请求泄露到世界各地，并且可能会得到错误的答复。
+		bogus-priv			阻止虚假【bogus】的私有反向查找。所有在 /etc/hosts 或 DHCP 租约【release】文件中找不到的私有IP范围的反向查找都将回答“no such domain”，而不是转发到上游。
+		expand-hosts		自动添加私有域名到 /etc/hosts 中的普通主机名。
+		domain=				本地域名
+		local=/[domain]/	告诉 Dnsmasq 直接解析本地域的查询，而不是将它们转发到上游。
+7、配置 firewalld 允许 DNS 和 DHCP
+	打开 TCP 和 UDP 端口 53【DNS】和 UDP 67【DHCP】。
+		firewall-cmd --permanent --add-service=dns
+		firewall-cmd --permanent --add-service=dhcp
+8、从客户端测试 Dnsmasq服务器
+	在局域网中的其他机器上使用 dig 命令通过 Dnsmasqs 服务器查询其他网站【如，baidu】：
+		$ dig @192.168.3.10 baidu.com
+		
+		; <<>> DiG 9.11.36-RedHat-9.11.36-11.el8 <<>> @192.168.3.10 baidu.com
+		; (1 server found)
+		;; global options: +cmd
+		;; Got answer:
+		;; ->>HEADER<<- opcode: QUERY, status: NOERROR, id: 3256
+		;; flags: qr rd ra; QUERY: 1, ANSWER: 2, AUTHORITY: 5, ADDITIONAL: 9
+		
+		;; QUESTION SECTION:
+		;baidu.com.                     IN      A
+		
+		;; ANSWER SECTION:
+		baidu.com.              600     IN      A       39.156.66.10
+		baidu.com.              600     IN      A       110.242.68.66
+		
+		;; AUTHORITY SECTION:
+		baidu.com.              557     IN      NS      ns4.baidu.com.
+		baidu.com.              557     IN      NS      dns.baidu.com.
+		baidu.com.              557     IN      NS      ns7.baidu.com.
+		baidu.com.              557     IN      NS      ns2.baidu.com.
+		baidu.com.              557     IN      NS      ns3.baidu.com.
+		
+		;; ADDITIONAL SECTION:
+		ns7.baidu.com.          117     IN      A       180.76.76.92
+		ns4.baidu.com.          127     IN      A       111.45.3.226
+		ns4.baidu.com.          127     IN      A       14.215.178.80
+		dns.baidu.com.          369     IN      A       110.242.68.134
+		ns2.baidu.com.          79      IN      A       220.181.33.31
+		ns3.baidu.com.          563     IN      A       153.3.238.93
+		ns3.baidu.com.          563     IN      A       36.155.132.78
+		ns7.baidu.com.          117     IN      AAAA    240e:bf:b801:1002:0:ff:b024:26de
+		ns7.baidu.com.          117     IN      AAAA    240e:940:603:4:0:ff:b01b:589a
+		
+		;; Query time: 20 msec
+		;; SERVER: 192.168.3.10#53(192.168.3.10)
+		;; WHEN: Wed Dec 13 07:25:12 EST 2023
+		;; MSG SIZE  rcvd: 317
+	》扩展
+		man 1 dig
+9、使用 Dnsmasq 管理 DHCP
+	DNS 正常运行后，就可以设置 DHCP了。在 /etc/dnsmasq.conf 中添加如下行来定义一个单一地址池：
+		# DHCP range
+		dhcp-range=192.168.3.25,192.168.3.75,12h
+		dhcp-lease-max=25
+	重启 Dnsmasq：
+		# systemctl restart dnsmasq.service
+	尝试获取 LAN 计算机上的地址。首先，确保其配置为通过DHCP获取其IP地址：
+		nmcli con show --active
+		nmcli con show ens33 | grep ipv..method
+	重新启动网卡：
+		nmcli con down ens33
+		nmcli con up ens33
+	在 Dnsmasq 服务器上查看日志：
+		journalctl -ru dnsmasq
+	》说明
+		dhcp-range		定义dhcp 可用地址租用范围，和租用时间。此范围不得包括Dnsmasq服务器或任何具有静态IP地址的主机。定义租用时间（以秒、分钟或小时为单位）。默认一小时，最短为两分钟。如果希望租约不过期，不要指定租约时间。
+		dhcp-lease-max	定义一次可以有多少个处于活动状态的租约。可以拥有一个较大的可用地址池，然后限制活动租约的数量。
+10、通过 DHCP 发布重要服务
+	可以通过 DHCP 向 LAN 客户端通告各种服务器（如Internet网关的默认路由、DNS服务器和NTP服务器）以便客户端可以自动使用它们。在 /etc/dnsmasq.conf中配置来通知某些服务：
+	①	设置默认路由：
+		dhcp-option=3,192.168.229.1
+	②	通知 DNS 服务器：
+		dhcp-option=6,192.168.229.128
+	③	指出本地NTP服务器的路径：
+		dhcp-option=42,192.168.229.11
+	使用如下命令列出具体服务使用哪些数字：
+		# dnsmasq --help dhcp
+	dnsmasq --help dhcp 显示已知的DHCPv4配置选项。
+11、为子网创建DHCP 区域
+	可以任意指定区域名称【如，zone1、zone2】：
+		dhcp-range=zone1,192.168.50.20,192.168.50.120
+		dhcp-range=zone2,192.168.60.20,192.168.60.50,24h
+	为区域指定路由：
+		dhcp-option=zone1,3,192.168.50.1
+		dhcp-option=zone2,3,192.168.60.1
+	为区域指定 DNS 服务器：
+		dhcp-option=zone1,6,192.168.1.10
+		dhcp-option=zone2,6,192.168.1.10
+	为区域指定 NTP 服务器：
+		dhcp-option=zone2,42,192.168.60.15
+12、从 DHCP 分配静态 IP 地址
+	为了尽可能几种IP寻址，可以分配静态IP地址。在 /etc/dnsmasq.conf 使用 dhcp-host 选项。通过主机名识别客户端机器，并从LAN地址块中的分配一个未使用的地址【不必使用通过_dhcp_range=*选项定义的DHCP地址范围作为静态静态】。
+	分配一个 192.168.3.0/24 网段的地址给server2：
+		dhcp-host=server2,192.168.3.45
+	重启 Dnsmasq ，下次 server2 请求地址时，它将收到通过 dhcp-host 选项指定的地址。使用多个 dhcp-host 选项设置多个客户端，每行一个。
+	可以使用客户端的MAC地址来代替主机名。
+13、配置 DHCP 客户端以实现自动 DNS 条目
+	可能希望Dnsmasq自动将DHCP客户端加入DNS。客户端唯一要做的就是将其主机名发送到Dnsmasq的DHCP服务器，这是大多数Linux中的默认设置。假设本地miggi.nut域上的DHCP客户端的主机名为client4。
+	client4启动，并从Dnsmasq接收其IP地址和其他网络信息。 Dnsmasq 接收 client4的主机名并将其输入到DNS中。现在网络上的其他主机可以访问client4和client4.miggit.nut。/etc/hosts 中 client4不得有任何重复条目。
+	有三种不同的方法可以检查DHCP客户端配置：dhclient.conf、NetworkManager的图形配置工具（nm-connection-editor）和nmcli命令。
+	①	查找活跃网络连接
+		# nmcli con show --active
+		NAME   UUID                                  TYPE      DEVICE
+		ens33  f7d0c799-3e8e-3c6a-9256-d5df77b05383  ethernet  ens33 
+	②	验证它是否将主机名发送到DHCP服务器
+		nmcli connection show ens33 | grep send-hostname
+		ipv4.dhcp-send-hostname:                是
+		ipv6.dhcp-send-hostname:                是
+	③	如果是“否【no】”，运行如下命令将其设置“是【yes】”。之后重新加载配置
+		nmcli con mod ens33 ipv4.dhcp-send-hostname yes
+		nmcli con mod ens33 ipv6.dhcp-send-hostname yes
+		nmcli con reload
+14、管理 Dnsmasq 日志
+	Dnsmasq 可以选择使用旧版syslog守护进程将其消息发送到选择的文件，而不是journalctl。使用 /etc/dnsmasq.conf 中的 log-facility 选项指定日志文件。如：
+		# log file
+		log-facility=/var/log/dnsmasq/dnsmasq.log
+	日志文件将增长的非常块，除非设置日志轮询【log rotation】。如：
+		# /etc/logrotate.d/dnsmasq
+		/var/log/dnsmasq/dnsmasq.log {
+			missingok
+			compress
+			rotate 4
+			weekly
+			create
+		}
+	使用 logrotate 检查 dnsmasq 日志轮询配置：
+		logrotate --debug /et/logrotate.conf
+		[...]
+		rotating pattern: /var/log/dnsmasq/dnsmasq.log  weekly (4 rotations)
+		empty log files are not rotated, old logs are removed
+		considering log /var/log/dnsmasq/dnsmasq.log
+		Creating new state
+		  Now: 2023-12-14 06:06
+		  Last rotated at 2023-12-14 06:00
+		  log does not need rotating (log has already been rotated
+		[...]
+15、配置通配符域【wildcard domain】
+	如果想要在Dnsmasq中创建通配符域，以便解析对该域的子域的请求，而无需手动将子域添加到DNS中。可以在/etc/dnsmasq.conf文件中使用 address 选项来创建顶级域【top-level domain（TLD）】。如：
+		address=/wildcard.net/192.168.1.35
+	重启 Dnsmasq，使用nslookup测试：
+	# nslookup foo.wildcard.net
+	Server:         192.168.229.128
+	Address:        192.168.229.128#53
+	
+	Name:   foo.wildcard.net
+	Address: 192.168.1.35
+	谨慎使用 DNS 通配符。 当对 Kubernetes 等复杂服务进行开发工作时，通配符非常有用。确保使用的地址范围与 LAN 名称服务器上的范围不同，并且仅适用于 LAN 客户端。
 
 
+Keeping Time with ntpd, chrony, and timesyncd
+	使用 NTP（网络时间协议）可以轻松自动地保持所有主机准确且相同的时间。NTP在Linux上通过ntpd（NTP守护进程）、chrony（ntpd替代平）和systemd的timesyncd来实现。
+	ntpd和chrony可以充当LAN时间服务器，而timesyncd是一个更简单的轻量级客户端，没有服务器功能。ntpd和chrony是完整的NTP实现，timesyncd使用SNTP（简单网络时间协议）。
+	大多数 Linux 发行版都提供了指向它们维护的时间服务器的默认配置。
+	Linux系统上至少有两个计时器。一是主板上的硬件时钟，也称为实时时钟（RTC）。另一个是系统时间，由Linux内核管理。即使计算机关机，RTC也时钟通过主板上的电池或电容器供电。
+	当Linux启动时，选择的NTP客户端会从RTC获取时间。然后，在网络可用后，它根据其上游时间服务器校正时间。
+	RTC时间是在BIOS/UEFI中设置的。应始终将其设置为UTC（协调世界时），然后Linux内核根据UTC计算所在时区的时间。UTC与格林威治时间（GMT）类似，但并不相同。UTC是时区。UTC和GMT均不会更改夏令时（DST）。
+	时区数据来自“IETF.org Timezones【https://www.ietf.org/timezones/】”。随着各国更改夏令时日期、选择退出或重新加入夏令时，这是一个不断变化的目标。大多数Linux将时区数据保存在 /usr/share/zoneinfo/。
+	互联网工程任务组 (IETF) 跟踪这些变化并免费提供其数据库。
+1、查看当前系统上的NTP客户端
+	使用 ps 命令查看系统是否正在运行三个时间同步守护进程【ntpd、chrony、timesyncd】中的任何一个：
+		ps ax | grep -w ntp
+		ps ax | grep -w chrony
+		ps ax | grep -w timesyncd
+	如果没有运行其中之一，查看系统是否正在使用timedatectl，它是 systemd 的一部分：
+		# timedatectl status
+		               Local time: 四 2023-12-14 06:58:55 CST
+		           Universal time: 三 2023-12-13 22:58:55 UTC
+		                 RTC time: 三 2023-12-13 22:58:55
+		                Time zone: Asia/Shanghai (CST, +0800)
+		System clock synchronized: yes
+		              NTP service: active
+		          RTC in local TZ: no
+		当前正在使用的NTP 时间守护进程。
+		如果法相系统上同时运行了ntpd和chrony，要移除ntpd，因为chrony更新、更快、更可靠。两者同时存在可能会产生冲突。
+	》扩展
+		timedatectl：Control the system time and date【https://www.freedesktop.org/software/systemd/man/latest/timedatectl.html】
+		man 1 ps
+2、使用 timesyncd 进行简单时间同步
+	使用 systemd-timesyncd 守护进程启用与公共 NTP 服务器的同步，这需要 systemd。检查systemd-timesyncd的状态：
+		systemctl status systemd-timesyncd
+	使用 timedatectl 启用它，并验证 systemd-timesyncd 是否已启动：
+		timedatectl set-ntp true
+		systemctl status systemd-timesyncd
+	查看 timedatectl 报告：
+		timedatectl status
+	配置多个公共时间服务器以实现冗余【redundancy】是一个好习惯。编辑 /etc/systemd/timesyncd.conf 添加多个NTP服务器【通过取消注释 NTP 行并输入以空格分隔的公共服务器池列表来添加更多 NTP 服务器】：
+		[Time]
+		NTP=0.north-american.pool.ntp.org 1.north-american.pool.ntp.org 2.north-american.pool.ntp.org
+	》说明
+		在原始 /etc/systemd/timesyncd.conf 文件中，带注释的选项记录了默认配置。
+		池服务器高度可靠，因为它们是单个池中的多台服务器，而不是单个服务器。为了获得最佳性能，使用所在地区的池服务器，无论是大陆池【https://www.ntppool.org/zone/@】还是国家池，可以通过单击大陆池链接找到它们。
+		Linux 发行版可能会配置自己的多个服务器池。如：
+			0.opensuse.pool.ntp.org 1.opensuse.pool.ntp.org 2.opensuse.pool.ntp.org
+		这很好，不需要更改它，但更多样化的配置通常更可靠。
+3、使用 timedatectl 手动设置时间
+	使用 timedatectl 可以通过单行命令设置日期，系统时间和TRC时间。如：
+		timedatectl set-time "2023-12-14 07:19:00"
+	注意：当 system-timesyncd 正在运行时，无法执行此操作。必须停止它：
+		systemctl stop system-timesyncd
+		# timedatectl set-ntp false
+		# timedatectl set-time "2023-12-14 07:28"
+		# timedatectl status
+		               Local time: 四 2023-12-14 07:28:06 CST
+		           Universal time: 三 2023-12-13 23:28:06 UTC
+		                 RTC time: 三 2023-12-13 23:28:06
+		                Time zone: Asia/Shanghai (CST, +0800)
+		System clock synchronized: no
+		              NTP service: inactive
+		          RTC in local TZ: no
+	如果重启 systemd-timesyncd ，将会覆盖手动设置。
+	timedatectl 有一小部分命令。如果习惯使用 date 命令设置时间以及其他时间和日期操作，timedatectl 可能看起来很轻量。它的设计很简单，而且仍然可以使用日期和众多选项来完成复杂的任务。
+4、使用 chrony 作为 NTP 客户端
+	首先，检查 ntpd 是否已安装。如果已安装，将其卸载。如果有 systemd-time，则禁用它。在大多数Linux发行版上，其包名为 chrony。安装后，使用 chronyc 命令检查其状态。如：
+		# chronyc activity
+		200 OK
+		4 sources online
+		0 sources offline
+		0 sources doing burst (return to online)
+		0 sources doing burst (return to offline)
+		0 sources with unknown address
+	查看 chrony.conf 文件，要么是 /etc/chrony.conf【Fedora】或 /etc/chrony/chrony.conf【Ubuntu】。无需进行太多更改（如果有的话）即可将其用作客户端。 检查 NTP 服务器列表，将在其中看到服务器【server】和池【pool】选项。
+	可以指定多个池来提供可靠性。如：
+		pool 0.ubuntu.pool.ntp.org iburst
+		pool 1.ubuntu.pool.ntp.org iburst
+		pool 0.north-america.pool.ntp.org iburst
+		pool 1.north-america.pool.ntp.org iburst
+		server ntp.domain.lan iburst prefer
+	更改配置后，重启chrony。
+	》说明
 
 		
-
-		
-		
-
-
-
 
