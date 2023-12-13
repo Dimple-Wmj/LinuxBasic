@@ -1819,6 +1819,14 @@ Keeping Time with ntpd, chrony, and timesyncd
 		server ntp.domain.lan iburst prefer
 	更改配置后，重启chrony。
 	》说明
+		iburst		表示网络中断后快速同步
+		prefer		表示始终使用该服务器【除非它不可用】
+	这是客户端设置所需要做的全部工作。chrony 是一个完整的 NTP 实现并且有很多选项；有关完整说明，见 man 5 chrony.conf。
+	chrony 比 ntpd 有几个优点。 作为客户端的主要优点是更好地处理中断的网络连接以及在连接恢复时更快地重新同步。
+	》补充
+		chrony【https://chrony-project.org/】
+		man 5 chrony.conf
+		man 1 chronyc
 
 		
 
