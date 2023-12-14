@@ -1823,10 +1823,189 @@ Keeping Time with ntpd, chrony, and timesyncd
 		prefer		表示始终使用该服务器【除非它不可用】
 	这是客户端设置所需要做的全部工作。chrony 是一个完整的 NTP 实现并且有很多选项；有关完整说明，见 man 5 chrony.conf。
 	chrony 比 ntpd 有几个优点。 作为客户端的主要优点是更好地处理中断的网络连接以及在连接恢复时更快地重新同步。
+	使用如下命令管理 chronyd：
+		systemctl status chronyd
+		systemctl start chronyd
+		systemctl stop chronyd
+		systemctl restart chronyd
 	》补充
 		chrony【https://chrony-project.org/】
 		man 5 chrony.conf
 		man 1 chronyc
+
+5、使用 chrony 作为 LAN 时间服务器
+	禁用 systemd-timesyncd 和移除 ntpd【如果有】。安装 chrony 包。编辑配置文件【/etc/chrony.conf】。基本配置如下：
+		pool 0.north-america.pool.ntp.org iburst
+		pool 1.north-america.pool.ntp.org iburst
+		pool 2.north-america.pool.ntp.org iburst
+
+		local stratum 10
+		allow 192.168.0.0/16
+		allow 2001:db8::/56
+
+		driftfile /var/lib/chrony/chrony.drift
+		maxupdateskew 100.0
+		rtcsync
+		logdir /var/log/chrony
+		log measurements statistics tracking
+		leapsectz right/UTC
+		makestep 1 3
+	将 chrony 服务器的名称添加到客户端的 chrony.conf 文件中。如：
+		server ntp.domain.lan iburst prefer
+		pool 1.north-america.pool.ntp.org iburst
+		pool 2.north-america.pool.ntp.org iburst
+	》说明
+		prefer	选项意味着只要该服务器可用，就始终使用该服务器。保留本地时间服务器的原因之一是减少公共时间服务器的负载。使用 prefer 选项，可以将一些公共服务器配置为备份，以防本地服务器不可用，并且不用担心给它们带来负担。
+		local stratum 10	配置 chrony继续充当本地 NTP 服务器，即使网络连接已中断，【stratum 10】将服务器安全地置于strata【层】层次结构中，因此它低于正在使用地任何外部 NTP 服务器。允许的值是1~15。
+				不要使用小于 10 的数字，使用10以外的数字，以防此配置使第10层广受欢迎。
+		allow	定义允许使用 NTP 服务器的网络
+		rtcsync	告诉 chrony 让 RTC 与系统时间保持同步
+		log		启用日志，定义想要记录日志的事件
+	可以在 man 5 chrony.conf 或默认的 chrony.conf中查找其他选项，这些选项通常都有很好的注释。
+6、查看 chrony 统计数据
+	如果想要调用一些实时事件活动或统计数据，如上游 NTP 服务器、偏移量、偏差、当前与哪个服务器同步以及其他信息。使用 chronyc 命令。tracking 子命令显示已应用的校正量、RTC时间、偏差和其他信息。如：
+		# chronyc tracking
+		Reference ID    : CA264007 (netfee.ustc.edu.cn)
+		Stratum         : 3
+		Ref time (UTC)  : Thu Dec 14 17:52:03 2023
+		System time     : 0.000604910 seconds fast of NTP time
+		Last offset     : +0.000570577 seconds
+		RMS offset      : 0.005902512 seconds
+		Frequency       : 6.825 ppm fast
+		Residual freq   : +0.017 ppm
+		Skew            : 0.845 ppm
+		Root delay      : 0.026057655 seconds
+		Root dispersion : 0.011448450 seconds
+		Update interval : 520.5 seconds
+		Leap status     : Normal
+	列出当前源服务器：
+		# chronyc sources
+		MS Name/IP address         Stratum Poll Reach LastRx Last sample               
+		===============================================================================
+		^? ntp.domain.lan                0   6     0     -     +0ns[   +0ns] +/-    0ns
+		^? ntp.wdc2.us.leaseweb.net      2   6     1     3    -41ms[  -41ms] +/-  311ms
+		^? time.neu.edu.cn               1   6     1     3    +31ms[  +31ms] +/-   60ms
+		^? sv1.ggsrv.de                  2   6     1     3   +904us[ +904us] +/-  169ms
+		^? stratum2-1.ntp.mow01.ru.>     0   6     0     -     +0ns[   +0ns] +/-    0ns
+		^? dns2.synet.edu.cn             1   6     1     3   +854us[ +854us] +/-   33ms
+		^? ntp6.flashdance.cx            2   6     1     4   -330us[ -330us] +/-  116ms
+		^? tock.ntp.infomaniak.ch        1   6     1     4   +288us[ +288us] +/-  111ms
+		^? cn.pool.ntp.org               1   6     1     4  -6089us[-6089us] +/-   30ms
+	列出当前的源服务器，并附上说明：
+		# chronyc sources -v
+		
+		  .-- Source mode  '^' = server, '=' = peer, '#' = local clock.
+		 / .- Source state '*' = current best, '+' = combined, '-' = not combined,
+		| /             'x' = may be in error, '~' = too variable, '?' = unusable.
+		||                                                 .- xxxx [ yyyy ] +/- zzzz
+		||      Reachability register (octal) -.           |  xxxx = adjusted offset,
+		||      Log2(Polling interval) --.      |          |  yyyy = measured offset,
+		||                                \     |          |  zzzz = estimated error.
+		||                                 |    |           \
+		MS Name/IP address         Stratum Poll Reach LastRx Last sample
+		===============================================================================
+		^? ntp.domain.lan                0   8     0     -     +0ns[   +0ns] +/-    0ns
+		^? ntp.wdc2.us.leaseweb.net      2   6     7    32  -3359us[-3359us] +/-  257ms
+		^? time.neu.edu.cn               1   6     7    32  +6133us[+6133us] +/-   32ms
+		^? sv1.ggsrv.de                  2   6     7    32    -30ms[  -30ms] +/-  158ms
+		^? stratum2-1.ntp.mow01.ru.>     2   6     3    34  -5069us[-5069us] +/-   71ms
+		^? dns2.synet.edu.cn             1   6     7    33  +8384us[+8384us] +/-   39ms
+		^? ntp6.flashdance.cx            2   6     7    34    +10ms[  +10ms] +/-  126ms
+		^? tock.ntp.infomaniak.ch        1   6     7    33  +5351us[+5351us] +/-  108ms
+		^? cn.pool.ntp.org               1   6     7    34    -57ms[  -57ms] +/-   82ms
+	【*】显示系统当前正在与哪个服务器同步。
+	》说明
+		chrony会针对客户端计算机上的网络延迟和等待时间、间歇性连接以及睡眠和休眠模式进行调整。chrony 始终永远不会停止，即使外部名称服务器不可用，它也能使网络保持同步。
+	》补充
+		man 1 chronyc
+		chrony.tuxfamily.org【https://chrony-project.org/】
+7、使用 ntpd 作为 NTP 客户端
+	首先，确保 ntpd 是系统上唯一的 NTP 客户端。在大多数Linux发行版上，查找要安装的ntp软件包。在大多数Linux发行版上，ntpd 都带有有用的配置，并在安装后启动。使用 ps 命令检查：
+		ps ax | grep -w ntpd
+	如果 ntpd没有自动启动，启动它：
+		systemctl start ntpd
+	ntpd 的配置文件通常是 /etc/ntpd.conf。默认配置应该可以正常工作，无需更改。如果网络有自己的LAN服务器，以下配置将本地服务器设置为主服务器，并将一个Fedora Linux 服务器池作为后备服务器。：
+		server ntp.domain.lan iburst prefer
+		pool 2.fedora.pool.ntp.org iburst
+	可以保留默认配置，这在大多数情况下都可以正常工作。 Linux 发行版通常维护自己的 NTP 服务器池并在默认配置中提供这些服务器池。 
+	如果希望替换这些服务器，或添加一些外部公共服务器，请参阅大陆池（contiental pools【https://www.ntppool.org/zone/@】）以获取大陆 NTP 服务器池列表，或使用您所在的国家/地区池（您可以通过单击大陆池链接找到该池）。
+	当更改 /etc/ntpd.conf后，重启 ntpd：
+		systemctl restart ntpd
+		/etc/init.d/ntp restart
+	检查它是否与 ntpq 一起工作。 星号【*】表示机器正在与哪个 NTP 服务器同步。
+		ntpq -p
+	》补充
+		man 5 ntp.conf
+		man 8 ntpd
+		man 8 ntpq
+		NTP 文档【https://www.ntp.org/documentation/】
+8、使用 ntpd 作为 NTP 服务器
+	使用 ntpd 作为 LAN 时间服务器与使用它作为 NTP 客户端类似。配置几乎相同，只是添加了一些访问控制。/etc/ntpd.conf 的完整配置如下：
+		driftfile /var/lib/ntp/drift
+
+		restrict default nomodify notrap noquery
+		restrict -6 default nomodify notrap nopeer noquery
+		restrict 127.0.0.1
+		restrict ::1
+
+		pool 0.cn.pool.ntp.org
+		pool 1.cn.pool.ntp.org
+		pool 2.cn.pool.ntp.org
+
+		leapfile /usr/share/zoneinfo/leap-seconds.list
+
+		statistics clockstats loopstats peerstats
+		filegen loopstats file loopstats type day enable
+		filegen peerstats file peerstats type day enable
+		filegen clockstats file clockstats type day enable
+		statsdir /var/log/ntpstats/
+	》说明
+		driftfile 是 ntpd 跟踪由主板上石英晶体振荡频率波动引起的时间漂移的地方。有以下选择：
+		restrict default	拒绝所有内容，仅允许明确允许的内容，并设置默认值。
+		nomodify			不允许其他时间服务器对系统进行任何更改。允许查询。
+		notrap				禁用远程日志
+		nopeer				不允许对等互连。对等服务器相互同步，因此唯一允许提供时间服务的服务器由 server 和 pool 指令指定。
+		noquery				不允许远程查询和远程日志记录
+		restrict 127.0.0.1	信任 localhost
+		restrict ::1		信任 localhost
+		statistics 			将选择的统计信息记录到 /var/log/ntpstats/中。这不是必需的，但对于跟踪哪些上游NTP服务器具有最佳性能可能更有趣。
+	》扩展
+		man 5 ntp.conf
+		man 8 ntpd
+		man 8 ntpq
+		NTP 文档【https://www.ntp.org/documentation/】
+9、使用 timedatectl 管理时区
+	使用 timedatectl 查看当前时区：
+		# timedatectl | grep -i "time zone"
+		                Time zone: Asia/Shanghai (CST, +0800)
+	列出所有时区：
+		# timedatectl list-timezones
+	设置时区：
+		# timedatectl set-timezone Asia/Shanghai
+	更改会立即生效。
+	》说明
+		当与不同时区的人员合作时，使用UTC来协调会议时间。有多种在线时区转换器，如 Time Zone Converter【https://www.timeanddate.com/worldclock/converter.html】。
+		必须使用 timedatectl list-timezones显示的格式【region/city】来设置时区。这是由 ISO 8601 标准定义的，该标准定义了表达时区、时间和日期的明确标准。 该标准使用“降序表示法”，即按顺序从最大值到最小值。
+		如，对于时区，顺序是 continent/country/city。US把日期写成“年-日-月”不符合这个标准。“年-月-日”为标准，年份为四位数【YYYY-MM-DD】，时间为【HH:MM:SS】，采用24小时制格式。
+	》扩展
+		man 1 timedatectl
+10、不使用 timedatectl 管理时区
+	如果系统没有systemd，可以使用 date 管理时区。如查看当前时区：
+		# date
+		2023年 12月 15日 星期五 04:18:52 CST
+	或，查看 /etc/localtime 链接到哪个文件：
+		# ls -l /etc/localtime
+		lrwxrwxrwx. 1 root root 35 12月 13 21:40 /etc/localtime -> ../usr/share/zoneinfo/Asia/Shanghai
+	/usr/share/zoneinfo 目录包含所有时区。在其子目录中可以查找机器所在区域的时区。通过更改 /etc/local链接到的文件可以更改时区。
+		# ls /usr/share/zoneinfo/Asia/Shanghai /etc/localtime
+	更改会立即生效。
+
+
+Troubleshooting Networks
+	
+
+
+
 
 		
 
