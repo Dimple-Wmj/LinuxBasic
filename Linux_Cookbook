@@ -2002,6 +2002,181 @@ Keeping Time with ntpd, chrony, and timesyncd
 
 
 Troubleshooting Networks
+1、使用 ping 测试连接性
+	当调试网络问题时，由近到远【这意味着物理距离以及需要跨越的路由器数量】。从本地LAN网段开始，然后如果有多个LAN网段，穿过路由器，进入下一个LAN网段。然后到下一台路由器，依次类推。
+	从 ping 开始测试连接性。首先 ping localhost。确认网络接口已启动并正在运行。 如果看到“connect: Network is unreachable”，则表明网络接口存在问题。准备一些备用的 USB 网络接口，以便快速了解接口是否有缺陷。
+	对网络接口进行测试后，对主机名进行 ping 操作以测试名称解析，如【在3次 ping 操作后停止】：
+		ping -c 3 client4.miggi.nut
+	如果返回正确的IP地址，说明名称解析设置正确。如果返回本机地址【如127.0.0.1】，或“Name or service not known”，则DNS配置出了问题。
+	当本地DNS修复后，通过主机名 ping 网络主机。如果 ping 失败并显示“Destination Host Unreachable”，尝试 ping 其IP地址。如果成功，检查DNS。如果失败并显示相同的消息，则主机名和地址不正确，或主机已关闭。
+	如果无法访问任何外部 IP 地址，则网络接口可能正常，问题出在上游：以太网电缆、无线接入点或交换机。 “Network is unreachable”表示机器未连接到网络。
+	当寻找间歇性中断的根源时，将 ping 设置为运行一端时间【如，500次 ping ，间隔 2秒】。这样就不会压垮主机或网络，并将结果输出到文件中：
+		# ping -c 500 -i 2 server2 >> server2-ping.txt
+		# ping -c 500 -i 2 server | tee server2-ping.txt
+	在多宿主主机上，使用 ping -i interface-name 指定要使用的接口。
+	》说明
+		不要阻止回显请求【echo-request】、回显应答【echo-reply】、超时【time-exceeded】或目标无法到达【destination-unreach】的ping消息。
+		在防火墙上阻止所有 ping 消息，这是一个错误，因为许多网络功能至少需要这四个ping消息才能正常运行。
+2、使用 fping 和 nmap 分析网络
+	如果想生成网络上所有主机和IP地址的列表，并探测MAC地址和开放端口。可以使用 fping 和 nmap 探测 LAN，并记录结果。
+	fping 按顺序 ping 某个范围内的所有地址。如 ping 一次子网，报告哪些主机处于活动状态，查询DNS的主机名，并打印摘要：
+		fping -c1 -gAds 192.168.3.0/24 2>1 | egrep -v "ICMP|xmt" >> fping.txt
+	如下 nmap 示例执行类似的任务，但输出更简洁：
+		nmap -sn 192.168.3.0/24 > nmap.txt
+	探测网络上的主机是否有开放端口：
+		nmap -sS 192.168.3.*
+	收集主机及其IP地址的列表：
+		nmap -sn 192.168.3.0/24 | grep 'Nmap scan report for' | cut -d' ' -f5,6
+	》说明
+		nmap有许多用于探测网络的选项。未经许可，请勿探测他人的网络，因为这可能视为探测漏洞的行为。
+		运行端口扫描需要一定时间，但组好定期执行此操作以查看网络上发生的情况。仅运行必要的服务并禁用其他所有服务是基本的安全性。
+	》扩展
+		man 1 nmap
+		https://nmap.org
+		man 8 fping
+		https://fping.org
+3、使用 arping
+	①	概述
+		arping 是一个用于在网络中探测主机的工具。不同于 ping【工作在网络层】，arping工作在数据链路层，使用 ARP 协议。使用它包括向目标主机发送 ARP 请求并等待 ARP 回复。
+	②	基本使用
+		# arping 192.168.229.153
+		ARPING 192.168.229.153 from 192.168.229.128 ens36
+		Unicast reply from 192.168.229.153 [00:0C:29:97:76:2E]  0.836毫秒
+		Unicast reply from 192.168.229.153 [00:0C:29:97:76:2E]  1.774毫秒
+		Unicast reply from 192.168.229.153 [00:0C:29:97:76:2E]  1.523毫秒
+		如果不指定任何选项， arping 一直发送 ARP 请求。每行末尾的持续时间是每个ARP请求和回复之间经过的时间。通过，arping 首先发送广播消息。如果它收到 ARP 回复，则会切换到单播【Unicast】。
+	③	发送特定数量的 ARP 请求
+		可以通过 -c 选项传递所需数量的 ARP 请求。如：
+		# arping -c 2 192.168.229.153
+		ARPING 192.168.229.153 from 192.168.229.128 ens36
+		Unicast reply from 192.168.229.153 [00:0C:29:97:76:2E]  1.047毫秒
+		Unicast reply from 192.168.229.153 [00:0C:29:97:76:2E]  3.071毫秒
+		Sent 2 probes (1 broadcast(s))
+		Received 2 response(s)
+	④	在第一次回复后停止 ARP 请求
+		使用 -f 选项，可以判断 arping 一旦收到目的地的第一个回复就停止发送 ARP 请求：
+		# arping -f 192.168.229.153
+		ARPING 192.168.229.153 from 192.168.229.128 ens36
+		Unicast reply from 192.168.229.153 [00:0C:29:97:76:2E]  0.984毫秒
+		Sent 1 probes (1 broadcast(s))
+		Received 1 response(s)
+	⑤	一段时间后停止 ARP 请求
+		arping 还可以使用 -w 选项在特定时间段后停止发送 ARP 请求：
+		# date; arping -w 5 192.168.229.153; date
+		2023年 12月 16日 星期六 04:22:19 CST
+		ARPING 192.168.229.153 from 192.168.229.128 ens36
+		Unicast reply from 192.168.229.153 [00:0C:29:97:76:2E]  0.782毫秒
+		Unicast reply from 192.168.229.153 [00:0C:29:97:76:2E]  3.148毫秒
+		Unicast reply from 192.168.229.153 [00:0C:29:97:76:2E]  2.631毫秒
+		Unicast reply from 192.168.229.153 [00:0C:29:97:76:2E]  3.273毫秒
+		Unicast reply from 192.168.229.153 [00:0C:29:97:76:2E]  3.306毫秒
+		Sent 6 probes (1 broadcast(s))
+		Received 5 response(s)
+		2023年 12月 16日 星期六 04:22:24 CST
+		如果同时 -c 和 -w。在这种情况下，arping会继续执行ping操作，当到达到某个选项后会停止ping。
+	⑥	指定网络接口
+		如果本地主机有多个网络接口，必须使用-I 选项显示指定接口。否则，arping 会出错：
+		arping -f -I ens33 192.168.229.153
+	⑦	仅发送 MAC 级别的广播【broadcasts】
+		通常，arping 首先将 ARP 请求作为MAC广播发送，但，当它收到对广播ARP请求的答复时，它会切换到单播。它开始仅向目标主机发送ARP请求。使用-b选项可以更改此行为并仅发送广播。
+		# arping -b -c 2 192.168.229.153
+		ARPING 192.168.229.153 from 192.168.229.128 ens36
+		Unicast reply from 192.168.229.153 [00:0C:29:97:76:2E]  0.854毫秒
+		Unicast reply from 192.168.229.153 [00:0C:29:97:76:2E]  1.514毫秒
+		Sent 2 probes (2 broadcast(s))
+		Received 2 response(s)
+	⑧	运行在Unsolicited ARP模式下
+		可以使用-U选项来在主动ARP模式下运行arping。主动ARP也称为免费ARP。主动ARP在相邻主机提出请求之前更新相邻主机的ARP表。
+		这可能很有用，如，当本地主机的MAC或IP地址因故障转移而更新时。未经请求的ARP将此更改传播到其他主机。在这种情况下预计不会有ARP回复。使用-U选项跟新目的主机的ARP表：
+		# arping -U -c 1 192.168.3.15
+		arping: bind: 无法指定被请求的地址【可能是由于有多个网卡的原因】
+		# arping -U -s 192.168.3.10 -c 1 192.168.3.14
+		ARPING 192.168.3.14 from 192.168.3.10 ens33
+		Unicast reply from 192.168.3.14 [80:32:53:67:62:18]  6.084毫秒
+		Sent 1 probes (1 broadcast(s))
+		Received 1 response(s)
+		》注意：
+			默认情况下，不允许使用未经请求的ARP更新在ARP表中创建新条目。因此，必须将目标主机的arp_accept内核参数设置为1。如：
+				sysctl net.ipv4.conf.all.arp_accept # Unsolicited ARP isn't allowed
+				net.ipv4.all.arp_accept = 0
+				sysctl net.ipv4.conf.all.arp_accept=1 # Now, unsolicited ARP is allowed
+	⑨	仅发送 ARP 回复
+		arping 使用 -A 选项也会更新目标主机的ARP表。但，它不使用主动ARP，而是使用ARP回复，就像发出ARP请求一样：
+		# arping -A -c 1 192.168.3.14
+		arping: bind: 无法指定被请求的地址 【可能是由于有多个网卡的原因】
+		# arping -A -s 192.168.3.10 -c 1 192.168.3.14
+		ARPING 192.168.3.14 from 192.168.3.10 ens33
+		Sent 1 probes (1 broadcast(s))
+		Received 0 response(s)
+	⑩	指定源IP地址
+		arping 自动分配ARP数据包中的源IP地址。不过，也可使用 -s 选项手动设置。为了能够使用-s选项设置源IP地址，必须能够绑定不是本机的。
+		通常，此功能被禁用。可以通过将net.ipv4.ip_nonlocal_bind 内核参数设置为1来启用它。
+		# arping -c 1 -s 192.168.3.20 192.168.3.14
+		arping: bind: 无法指定被请求的地址
+		# sysctl net.ipv4.ip_nonlocal_bind
+		net.ipv4.ip_nonlocal_bind = 0
+		# systemctl net.ipv4.ip_nonlocal_bind=1
+		# arping -c 1 -s 192.168.3.20 192.168.3.14
+		ARPING 192.168.3.14 from 192.168.3.20 ens33
+		Unicast reply from 192.168.3.14 [80:32:53:67:62:18]  7.758毫秒
+		Sent 1 probes (1 broadcast(s))
+		Received 1 response(s)
+	⑩ ①	在重复地址检测模式下运行
+		将-D选项传递给arping，以在重复地址检测（DAD）模式下运行它。如果网络中的另一台主机正在使用目标IP地址，则arping会检测到此情况并返回1.如果没有重复的IP地址，则返回0。
+		# arping -D -c 1 192.168.3.10
+		ARPING 192.168.3.10 from 0.0.0.0 ens33
+		Unicast reply from 192.168.3.10 [00:0C:29:98:3C:14]  1.079毫秒
+		Sent 1 probes (1 broadcast(s))
+		Received 1 response(s)
+		echo $?
+		1
+		arping -D -c 1 192.168.3.20
+		ARPING 192.168.3.20 from 0.0.0.0 ens33
+		Sent 1 probes (1 broadcast(s))
+		Received 0 response(s)
+		[root@localhost ~]# echo $?
+		0
+		在DAD模式下，使用arping将源IP地址自动设置为0.0.0.0。
+		》注意：前提是源主机只有一个网络接口
+	》补充
+		arp 是地址解析协议【Address Resolution Protocol】，将IP地址与MAC地址进行匹配。
+		当 ping不到主机时，arping可用于查看主机是否已启动。直接阻止ping不是一件好事【因为它对于网络功能至关重要】。如果不禁用网络主机相同通信的能力，则无法阻止arping。
+		arp维护MAC地址表，。当网络主机向另一台主机发送数据包时，arp将IPdizhi与MAC地址进行匹配，然后即可将数据包传递出去。
+		可以使用像 tcpdump 这样的数据包探针来查看arp探测网络以更新其地址表时的情况。如：
+		# tcpdump -pi ens33 arp
+		dropped privs to tcpdump
+		tcpdump: verbose output suppressed, use -v[v]... for full protocol decode
+		listening on ens33, link-type EN10MB (Ethernet), snapshot length 262144 bytes
+		05:47:18.434897 ARP, Request who-has 192.168.3.10 tell 192.168.3.4, length 46
+		05:47:29.693468 ARP, Request who-has localhost.localdomain (Broadcast) tell 192.168.3.10, length 46
+		05:47:29.693484 ARP, Reply localhost.localdomain is-at 00:0c:29:97:76:24 (oui Unknown), length 28
+		05:47:29.758858 ARP, Request who-has localhost.localdomain tell 192.168.3.4, length 46
+		05:47:29.758905 ARP, Reply localhost.localdomain is-at 00:0c:29:97:76:24 (oui Unknown), length 28
+		05:47:30.706911 ARP, Request who-has localhost.localdomain (00:0c:29:97:76:24 (oui Unknown)) tell 192.168.3.10, length 46
+		05:47:30.706952 ARP, Reply localhost.localdomain is-at 00:0c:29:97:76:24 (oui Unknown), length 28
+		05:47:31.699487 ARP, Request who-has localhost.localdomain (00:0c:29:97:76:24 (oui Unknown)) tell 192.168.3.10, length 46
+		05:47:31.699499 ARP, Reply localhost.localdomain is-at 00:0c:29:97:76:24 (oui Unknown), length 28
+		05:47:32.698401 ARP, Request who-has localhost.localdomain (00:0c:29:97:76:24 (oui Unknown)) tell 192.168.3.10, length 46
+		05:47:32.698434 ARP, Reply localhost.localdomain is-at 00:0c:29:97:76:24 (oui Unknown), length 28
+		05:47:33.705699 ARP, Request who-has localhost.localdomain (00:0c:29:97:76:24 (oui Unknown)) tell 192.168.3.10, length 46
+		05:47:33.705735 ARP, Reply localhost.localdomain is-at 00:0c:29:97:76:24 (oui Unknown), length 28
+		05:47:35.188471 ARP, Request who-has _gateway tell localhost.localdomain, length 28
+		05:47:35.190763 ARP, Reply _gateway is-at 14:51:20:94:4f:87 (oui Unknown), length 46
+		05:47:40.226238 ARP, Request who-has localhost.localdomain tell _gateway, length 46
+		05:47:40.226259 ARP, Reply localhost.localdomain is-at 00:0c:29:97:76:24 (oui Unknown), length 28
+		05:47:43.434226 ARP, Request who-has 192.168.3.6 tell 192.168.3.6, length 46
+		05:47:43.435449 ARP, Request who-has 192.168.3.6 tell _gateway, length 46
+		05:47:45.329655 ARP, Request who-has localhost.localdomain (0c:54:15:88:17:5b (oui Unknown)) tell 192.168.3.4, length 46
+		05:47:45.329710 ARP, Reply localhost.localdomain is-at 00:0c:29:97:76:24 (oui Unknown), length 28
+		05:48:00.022940 ARP, Request who-has 192.168.3.15 tell 192.168.3.5, length 46
+	》扩展
+		man 8 arping
+4、使用 httping 测试 HTTP 吞吐量【throughput】和延迟【latency】
+	httping测试HTTP服务器的吞吐量和延迟。最简单的测试延迟调用如下：
+		
+
+		
+		
 	
 
 
