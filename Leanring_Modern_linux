@@ -1,3 +1,123 @@
+Linux 概述
+1、资源可见性
+	秉承UNIX的优良传统，Linux默认具有全局资源视图。
+	在Linux 和Unix中“一切皆文件”。在这里，认为资源是任何可以用来帮助软件执行的东西【包括硬件及其抽象（CPU和RAM、文件）、文件系统、硬盘驱动器、固态驱动器（SSD）、进程、与网络相关的东西（如设备或路由表），以及代表用户的凭据。】
+	注意：并非Linux中的所有资源都是文件或通过文件接口表示。有一些系统，可以更进一步。
+	Linux资源的具体示例如下：
+	①	查看Linux版本信息：
+	# cat /proc/version 
+	Linux version 5.14.0-352.el9.x86_64 (mockbuild@x86-05.stream.rdu2.redhat.com) (gcc (GCC) 11.4.1 20230605 (Red Hat 11.4.1-2), GNU ld version 2.35.2-42.el9) #1 SMP PREEMPT_DYNAMIC Wed Aug 9 00:25:27 UTC 2023cat /proc/version
+	②	查看正在使用的CPU的特定硬件信息：
+	# cat /proc/cpuinfo | grep "model name"
+	model name      : Intel(R) Core(TM) i7-8750H CPU @ 2.20GHz
+	③	打印进程状态（有关当前进程的详细信息）并将输出限制为仅显示当前六行。
+	# cat /proc/$$/status | head -n6
+		Name:   bash
+		Umask:  0022
+		State:  S (sleeping)
+		Tgid:   1034
+		Ngid:   0
+		Pid:    1034
+	》补充：$$
+		这是一个特殊变量，涉及当前进程。在shell上下文中，$$是在其中输入命令的shell的进程ID。
+	在Linux中可以有多个具有相同PID的进程【不同的上下文【命名空间】中可以有多个具有相同PID的进程，如在容器化设置。
+	每个进程可能认为它很特殊，具有PID 1，在更传统的设置中，它是为用户空间进程树的根保留的。
+	给定资源可以有全局视图（两个用户在完全相同的位置查看文件）以及本地或虚拟化视图。Linux中的所有内容并非默认都是全局的。
+	多个用户或进程并行运行的错觉的一部分是对资源的（有限的）可见性。在Linux中提供（某些受支持的）资源的本地视图是通过命名空间。
+	第二个独立的维度是隔离。考虑进程隔离的一种方法是限制内存消耗，以便一个进程不会导致其他进程没有内存可用。如为应用程序提供1GB的RAM供使用。如果它使用更多，就会因为内存不足而被杀死。这提供了一定程度的保护。在Linux中，使用称为cgroups的内核功能来提供这种隔离。
+	另一方面，完全隔离的环境使应用程序看起来完全独立。如虚拟机可用于提供完全隔离。
+	任何Linux发行版的核心都具有内核【kernel】，提供其他所有内容所构建的API。文件、网络和可观察性这三个核心主题随处可见。
+	从形式上来说，POSIX（便携式操作系统接口）是一个IEEE标准，用于定义UNIX操作系统的服务接口。动机是提供不同实现之间的可移植性。如果读到“符合POSIX标准”之类的内容，考虑一组在官方采购环境中特别相关的正式规范，而在日常使用中则不太相关。
+	Linux 的构建是为了兼容 POSIX 以及 UNIX 系统 V 接口定义 (SVID)，这赋予了它老式 AT&T UNIX 系统的风格，而不是 Berkeley Software Distribution (BSD)风格系统。
+
+
+The Linux Kernel
+	虽然内核提供所有核心功能，但它本身并不是操作系统，而只是操作系统的一个非常核心的部分。
+1、Linux架构
+	从较高层面来看，可以将其分为三个不同的层：
+	①	硬件【Hardware】
+		从CPU和内存到磁盘驱动，网络接口和外围设备【如，键盘和显示器】
+	②	内核【The Kernel】
+		有许多组件位于内核和用户空间之间，如 init 系统和系统服务（网络等），但严格来说，它们不是内核的一部分。
+	③	用户空间【User land】
+		大多数应用车如果你徐运行的地方，包括操作系统组件（如shell）、实用程序（如ps或ssh）以及图形用户界面。
+	不同层之间的接口已明确定义，并且是 Linux 操作系统包的一部分。 内核和用户态之间有一个称为系统调用（简称syscalls）的接口。
+	与系统调用不同，硬件和内核之间的接口不是单一的。它由一组单独的接口组成，通常按硬件分组：
+		①	CPU接口
+		②	内存接口
+		③	网络接口和驱动
+		④	文件系统和块设备驱动接口
+		⑤	字符设备，硬件中断和设备驱动，用于输入的设备【如键盘、终端和其他I/O】
+	通常认为是 Linux 操作系统一部分的许多东西【如shell或grep、find和ping等实用程序】，实际并不是内核的一部分，而是非常像下载的应用程序，用户空间的一部分。
+	在用户态中，经常会读到或听到有关用户模式和内核模式的内容。这实际上指的是对硬件的访问权限有多大以及可用的抽象有多大限制。
+	一般，内核模式意味着快速执行和有限的抽象，用户模式意味着相对较慢但更安全和更方便的抽象。
+	除非是内核开发人员，否则几乎总是可以忽略内核模式，因为所有应用程序都将在用户空间中运行。另一方面，了解如何与内核交互【系统调用】至关重要，也是考虑的一部分。
+2、CPU架构
+	除了通用代码和驱动程序之外，Linux内核还包含特定于体系结构的代码。这种分离使其能够移植Linux并使用其在新硬件上快速可用。有多种方法可以确定Linux正在运行什么CPU。
+	》补充【BIOS 和 UEFI】
+		传统上，UNIX和Linux实用基本I/O系统（BIOS）进行自身引导。当打开Linux电脑时，它完全由硬件控制。首先，硬件被连接以运行加电自检（POST），这是BIOS的一部分。POST确保硬件（RAM等）按指定功能运行。
+		在现代环境中，BIOS功能已被统一可扩展固件接口（UEFI）有效取代，UEFI时一种定义操作系统和平台固件之间的软件接口的公共规范。
+	一种方法是使用名为 dmidecode 的专用工具，它与BIOS交互。如果这没有产生结果，可以尝试以下操作之一：
+	# lscpu
+		架构：                   x86_64
+		  CPU 运行模式：         32-bit, 64-bit
+		  Address sizes:         45 bits physical, 48 bits virtual
+		  字节序：               Little Endian
+		CPU:                     2
+		  在线 CPU 列表：        0,1
+		厂商 ID：                GenuineIntel
+		  BIOS Vendor ID:        GenuineIntel
+		  型号名称：             Intel(R) Core(TM) i7-8750H CPU @ 2.20GHz
+		    BIOS Model name:     Intel(R) Core(TM) i7-8750H CPU @ 2.20GHz
+		    CPU 系列：           6
+		    型号：               158
+		    每个核的线程数：     1
+		    每个座的核数：       2
+		    座：                 1
+		    步进：               10
+		    BogoMIPS：           4416.00
+		    标记：               fpu vme de pse tsc msr pae mce cx8 apic sep mtrr pge mca cmov pat pse36 clflush mmx fxsr sse sse2 ss ht syscall nx pdpe1gb rdtscp lm constant_tsc arch_perfmon nopl xtopology tsc_reliable nonstop_tsc cpui                         d tsc_known_freq pni pclmulqdq ssse3 fma cx16 pcid sse4_1 sse4_2 x2apic movbe popcnt tsc_deadline_timer aes xsave avx f16c rdrand hypervisor lahf_lm abm 3dnowprefetch invpcid_single pti ssbd ibrs ibpb st                         ibp fsgsbase tsc_adjust bmi1 avx2 smep bmi2 invpcid rdseed adx smap clflushopt xsaveopt xsavec xgetbv1 xsaves arat md_clear flush_l1d arch_capabilities
+		Virtualization features:
+		  超管理器厂商：         VMware
+		  虚拟化类型：           完全
+		Caches (sum of all):
+		  L1d:                   64 KiB (2 instances)
+		  L1i:                   64 KiB (2 instances)
+		  L2:                    512 KiB (2 instances)
+		  L3:                    9 MiB (1 instance)
+		[...]
+	另一种收集类似架构信息的方法是 cat /proc/cpuinfo ，或如果仅对架构感兴趣，可调用 uname -m。
+	①	x86 架构
+		x86 是一个指令集系列，最初由Intel开发，后来授权给Advanced Micro Devices（ARM）。在内核中，x64指的是Intel 64位处理器，x86代表Intel 32位处理器。此外，amd64指的是AMD 64位处理器。
+		如今，x86 CPU 系列主要出现在台式机和笔记本电脑中，但它也广泛用于服务器中。 具体来说，x86 构成了公共云的基础。 它是一种功能强大且广泛可用的架构，但能源效率不高。 
+		部分由于其严重依赖乱序执行，它最近受到了诸如 Meltdown【https://meltdownattack.com/】等安全问题的广泛关注。
+		有关更多详细信息，例如 Linux/x86 引导协议或 Intel 和 AMD 特定背景，请参阅特定于 x86 的内核文档。
+	②	ARM 架构
+		ARM 是一个精简指令集计算 (RISC) 架构系列，已有 30 多年的历史。 RISC 通常由许多通用 CPU 寄存器以及一小组可以更快执行的指令组成。
+		由于 Acorn（ARM 背后的原始公司）的设计人员从一开始就注重最小功耗，因此可以在 iPhone 等许多便携式设备中找到基于 ARM 的芯片。 它们也存在于大多数基于 Android 的手机和 IoT 中的嵌入式系统中，例如 Raspberry Pi。
+		鉴于它们比 x86 芯片更快、更便宜且产生的热量更少，因此在数据中心中越来越多地发现基于 ARM 的 CPU（例如 AWS Graviton）。虽然比 x86 简单，但 ARM 也不能免受 Spectre 等漏洞的影响。 见ARM的内核文档。
+	③	RISC-V 架构
+		RISC-V（读作“risk 5”）是一个后起之秀，是一种开放的 RISC 标准，最初由加州大学伯克利分校开发。 截至 2021 年，已有多种实施方案，从阿里巴巴集团和 Nvidia 到 SiFive 等初创公司。 
+		虽然令人兴奋，但这是一个相对较新且尚未广泛使用的 CPU 系列，要了解它的外观和感觉，可能需要对其进行一些研究——Shae Erisson 的文章“Linux on RISC-V【https://shapr.github.io/posts/2019-06-08-riscv-linux.html】”是一个好的开始”。有关更多详细信息，请参阅 RISC-V 内核文档。
+3、内核组件
+	在内核代码库中找到的主要功能块如下：
+		①	进程管理，如根据可执行文件启动进程
+		②	内存管理，如位进程分配内存或将文件映射到内存中。
+		③	网络，如管理网络接口或提供网络堆栈
+		④	文件系统提供文件管理并支持文件的创建和删除
+		⑤	字符设备和设备驱动的管理
+	这些功能组件通常具有相互依赖性，确保内核开发人员的座右铭“内核永远不会破坏用户空间”是一项真正具有挑战性的任务。
+	①	进程管理
+		
+
+		
+		
+	
+
+
+
+
+
 Access Control
 1、Basic
 	①	资源和所有权
