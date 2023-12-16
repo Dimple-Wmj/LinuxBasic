@@ -2172,7 +2172,107 @@ Troubleshooting Networks
 	》扩展
 		man 8 arping
 4、使用 httping 测试 HTTP 吞吐量【throughput】和延迟【latency】
+	》准备：
+		rpm包：https://rhel.pkgs.org/8/epel-x86_64/httping-2.5-8.el8.x86_64.rpm.html
 	httping测试HTTP服务器的吞吐量和延迟。最简单的测试延迟调用如下：
+		# httping -c4 -l -g www.baidu.com
+		PING www.baidu.com:443 (/):
+		connected to 183.2.172.185:443 (312 bytes), seq=0 time= 40.91 ms 
+		connected to 183.2.172.185:443 (312 bytes), seq=1 time= 38.43 ms 
+		connected to 183.2.172.185:443 (312 bytes), seq=2 time= 37.01 ms 
+		connected to 183.2.172.185:443 (312 bytes), seq=3 time= 48.95 ms 
+		--- https://www.baidu.com/ ping statistics ---
+		4 connects, 4 ok, 0.00% failed, time 4173ms
+		round-trip min/avg/max = 37.0/41.3/48.9 ms
+	这并没有告知加载页面需要多长时间，而只是告知服务器响应HEAD请求需要多长时间（单位毫秒），该请求仅获取页面标题而不获取内容。GET（-G）请求获取整个页面：
+		# httping -c4 -l -Gg www.baidu.com
+		PING www.baidu.com:443 (/):
+		connected to 183.2.172.185:443 (1138 bytes), seq=0 time= 43.13 ms 
+		connected to 183.2.172.185:443 (853 bytes), seq=1 time= 44.08 ms 
+		connected to 183.2.172.185:443 (853 bytes), seq=2 time= 49.22 ms 
+		connected to 183.2.172.185:443 (853 bytes), seq=3 time= 44.17 ms 
+		--- https://www.baidu.com/ ping statistics ---
+		4 connects, 4 ok, 0.00% failed, time 4188ms
+		round-trip min/avg/max = 43.1/45.1/49.2 ms
+	添加 -r 开关，通过仅解析一次主机名来最大程度地减少DNS延迟：
+		# httping -c4 -l -rGg www.baidu.com
+		PING www.baidu.com:443 (/):
+		connected to 183.2.172.185:443 (1138 bytes), seq=0 time= 34.25 ms 
+		connected to 183.2.172.185:443 (871 bytes), seq=1 time= 38.98 ms 
+		connected to 183.2.172.185:443 (871 bytes), seq=2 time= 56.38 ms 
+		connected to 183.2.172.185:443 (871 bytes), seq=3 time= 43.29 ms 
+		--- https://www.baidu.com/ ping statistics ---
+		4 connects, 4 ok, 0.00% failed, time 4189ms
+		round-trip min/avg/max = 34.2/43.2/56.4 ms
+	如果最大限度地减少DNS延迟会产生很大的影响，那么需要检查名称服务器。
+	通过在URL后追加端口号来测试指定端口【如，8080】：
+		# httping -c4 -l -rGg www.baidu.com:8080
+		PING www.baidu.com:8080 (/):
+	使用 -s 开关显示返回码：
+		# httping -c4 -l -srGg www.baidu.com
+		PING www.baidu.com:443 (/):
+		connected to 183.2.172.185:443 (1138 bytes), seq=0 time= 32.95 ms 200 OK
+		connected to 183.2.172.185:443 (865 bytes), seq=1 time= 33.13 ms 200 OK
+		connected to 183.2.172.185:443 (865 bytes), seq=2 time= 32.36 ms 200 OK
+		connected to 183.2.172.185:443 (865 bytes), seq=3 time= 38.94 ms 200 OK
+		--- https://www.baidu.com/ ping statistics ---
+		4 connects, 4 ok, 0.00% failed, time 4147ms
+		round-trip min/avg/max = 32.4/34.3/38.9 ms
+	》说明
+		在一天的不同时间运行多个测试来收集代表用户体验的数据。httping 并不是一个超级复杂的测试程序，可以深入挖掘站点来识别瓶颈。它是一个快速、简单的工具，可用于了解站点的整体性能，并告诉是否需要深入挖掘来诊断性能问题。
+	》扩展
+		HTTP return codes【https://www.w3.org/Protocols/rfc2616/rfc2616-sec10.html】
+		man 1 httping
+		httping【https://www.vanheusden.com/httping/】
+5、使用 mtr 查找有问题的路由器
+	使用 mtr （My Traceroute）查找数据包在哪里误入歧途。这在控制的网络上效果更好，因为互联网很大并且路由会变化，但当无法访问某个网站时，它会提供有用的信息。如：
+		# mtr -wo LSRABW baidu.com
+		Start: 2023-12-16T19:43:38+0800
+		HOST: localhost.localdomain Loss%   Snt   Rcv   Avg  Best  Wrst
+		  1.|-- _gateway               0.0%    10    10   3.2   2.6   4.5
+		  2.|-- TianYi.Home            0.0%    10    10   3.8   3.1   4.8
+		  3.|-- 100.64.0.1             0.0%    10    10   5.7   5.1   6.5
+		  4.|-- 113.98.87.205         30.0%    10     7   7.9   4.9  16.2
+		  5.|-- 58.62.247.65          50.0%    10     5   5.7   5.3   6.3
+		  6.|-- 202.97.109.190        20.0%    10     8  36.7  35.4  39.5
+		  7.|-- ???                   100.0    10     0   0.0   0.0   0.0
+		  8.|-- 219.158.41.21         70.0%    10     3  40.7  39.0  43.2
+		  9.|-- 219.158.3.5           70.0%    10     3  40.7  39.6  42.7
+		 10.|-- 219.158.11.94         30.0%    10     7  41.7  41.0  43.0
+		 11.|-- 110.242.66.166         0.0%    10    10  42.6  41.5  44.3
+		 12.|-- 221.194.45.130         0.0%    10    10  41.6  41.0  42.1
+		 13.|-- ???                   100.0    10     0   0.0   0.0   0.0
+		 14.|-- ???                   100.0    10     0   0.0   0.0   0.0
+		 15.|-- ???                   100.0    10     0   0.0   0.0   0.0
+		 16.|-- ???                   100.0    10     0   0.0   0.0   0.0
+		 17.|-- baidu.com              0.0%    10    10  44.7  43.5  46.2
+	其中【Loss%】显示数据包丢失情况。如果mtr发现问题，使用whois 查找域名所有者及其联系信息：
+		# whois -H 221.194.45.130
+		% [whois.apnic.net]
+		% Whois data copyright terms    http://www.apnic.net/db/dbcopyright.html
+		
+		% Information related to '221.192.0.0 - 221.195.255.255'
+		
+		% Abuse contact for '221.192.0.0 - 221.195.255.255' is 'zhaoyz3@chinaunicom.cn'
+		
+		inetnum:        221.192.0.0 - 221.195.255.255
+		netname:        UNICOM-HE
+		descr:          China Unicom Hebei Province Network
+		descr:          China Unicom
+		country:        CN
+		[...]
+	whois 适用于域名、IP地址。-H选项禁用法律术语。
+	将 mtr 输出捕获到文件中，并在每个条目的末尾添加日期和时间。如：
+		mtr -r -c25 oreilly.com >> mtr.txt && date >> mtr.txt
+	》说明：
+		mtr -wo LSRABW 限制列数。mtr -w 是报告的宽格式。
+		mtr 产生大量流量，因此注意不要运行得太频繁。
+	》扩展
+		man 8 mtr
+		man 1 whois
+	
+
+
 		
 
 		
