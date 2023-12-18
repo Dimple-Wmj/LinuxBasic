@@ -151,14 +151,121 @@ hells and Scripting
 		搜索历史			Ctrl+r
 		取消搜索			Ctrl+g
 		注意：这些快捷键是在Emacs编辑模式下，如果倾向于vi，可使用 set -o vi 切换到 vi
+2、友好的shell
+3、终端复用器
+4、脚本编写
+	①	脚本基础
+		除了变量、流和重定向以及常用命令之外，在脚本上下文中还有一些需要熟悉的特定内容。
+		Ⅰ	高级数据类型
+		虽然shell通常将所有内容都视为字符串（如果想执行一些更复杂的数字任务，可能不应该使用shell脚本），但它确实支持一些高级数据类型【如数组】：
+			os=('Linux' 'macOS' 'Windows')
+			echo "${os[0]}"
+			numberofos="${#os[@]}"
+		Ⅱ	流控制
+		流程控制允许在脚本中分支（if）或重复（for和while），使执行取决于特定条件。如：
+			for afile in /tmp/*; do
+				echo "$afile"
+			done
 
-			
+			for i in {1..10}; do
+				echo "$i"
+			done
 
+			while true; do
+				...
+			done
+		Ⅲ	函数
+		函数允许编写更加模块化和可重用的脚本。必须在使用函数之前定义该函数【shell从上到下解释脚本】。如
+			sayhi () {
+				echo "Hi $1 hope you are well
+			}
+			sayhi "Michael"
+		Ⅳ	高级 I/O
+		通过 read ，可以从stdin读取用户输入，可以使用它来引发运行时输入。此外，不要使用 echo ，考虑使用 printf ，它允许对输出（包括颜色）进行细粒度控制。printf 也比 echo 更便携。如：
+			read name
+			printf "Hello %s" "$name"
+		还有其他更高级的概念可供使用【如 signal 和 traps】。
+	②	编写可移植的脚本
+		如果脚本是可移植的，那么它可以在许多不同的系统上运行（shells、Linux发行版等）。
+		注意，即使确定了shell的类型【如，bash】，并非所有功能在不同版本的shell中都以相同的方式工作。归根结底，归结为可以在其中测试脚本的不同环境的数量。
+		Ⅰ	执行可移植脚本
+			脚本实际上只是文本文件；扩展名并不重要，尽管约定使用 .sh 。有两件事可以将文本文件转换为可执行并且能够由shell运行的脚本：
+			》文件需要在第一行声明解释器，使用所谓的shebang（或hashbang），写为 #! 。
+			》需要给予文件执行权限【如，chmod +x】。注意最小权限原则。
+		Ⅱ	骨架模板
+			可作为可移植 bash shell 脚本的骨架模板如下：
+				#! /usr/bin/env bash						# ①
+				set -o errexit								# ②
+				set -o nounset								# ③	
+				set -o pipefail								# ④
 
+				firstargument="${1:-somedefualtvalue}"		# ⑤
+				echo "$firstargument"
 
+			①	hashbang 指示希望使用 bash 来解释此脚本
+			②	定义如果发生错误要停止脚本执行
+			③	定义将未设置的变量视为错误【脚本不太可能默默失败】
+			④	定义当管道的一部分发生故障时，整个管道应被视为发生故障【有助于避免无声故障】
+			⑤	带有默认值的命令行参数示例
+		Ⅲ	好习惯
+			》Fail fast and loud
+			避免无声失败，并快速失败；像 errexit 和 pipefail 可以做到这一点。由于八十、默认情况下往往会静默失败，因此快速失败几乎总是一个好习惯。
+			》Sensitive information
+			不要将任何敏感信息（如，密码）硬编码到脚本中。此类信息应在运行时通过用户输入或调用API提供。另外，注意ps会泄露程序参数等，这是泄露敏感信息的另一种方式。
+			》Input sanitization
+			尽可能为变量设置并提供合理的默认值，并清理从用户或其他来源收到的输入。如通过read命令提供或交互引入的启动参数，以避免由于未设置变量而导致看似无辜的 rm -rf "$PROJECTHOME/"* 擦除驱动器的情况。
+			》Check dependencies
+			不要假设某个工具或命令可用，除非它是内置的或知道目标环境。
+			》Error handling
+			当脚本失败时（问题不在于是否失败，而是何时何地），为用户提供可操作说明。
+			》Documentation
+			为脚本块添加注释（# Some doc），并尝试坚持80列宽以提高可读性和差异。
+			》Versioning
+			考虑使用git对脚本进行版本控制
+			》Testing
+			检查并测试脚本。
+	③	检查和测试脚本
+		在开发过程中，需要检查和检查脚本，确保正确使用命令和说明。可以使用 ShellCheck 程序做到这一点，可以在本地下载并安装它，也可通过shellcheck.net使用在线版本。
+		另外，考虑使用 shfmt 格式化脚本，它会自动修复shellcheck 稍后报告的问题。
+		此外，在将脚本放到仓库之前，考虑使用bats对其进行测试。bats【https://github.com/sstephenson/bats】是 Bash Automated Testing System 的缩写，允许使用测试用例的特殊语法将测试文件定义为bash脚本。
+		每个测试用例指示一个带有描述的bash函数，通常会调用这些脚本作为 CI 管道的一部分，如作为Github操作【action】。
+	④	端到端示例：Github 用户信息脚本
+		示例脚本应该采用 Github 用户句柄并打印除一条消息，其中包含用户加入的年份机器完整信息。如：
+			#! /usr/bin/env bash
 
-			
+			set -o errexit
+			set -o errtrace
+			set -o nounset
+			set -o pipefail
 
+			### Command line parameter:
+			targetuser="${1:-dimple-wmj}"						# 提供一个默认值，以便在用户未提供时使用
+
+			### Check if our dependencies are met:
+			if ! [ -x "$(command -v jq)"]; then
+				echo "jq is not installed" >&2
+				exit 1
+			fi
+
+			### Main:
+			githubapi="https:/api.github.com/users/"
+			tmpuserdump="tmp/ghuserdump_$targetuser.json"
+
+			result=$(curl -s $githubapi$targetuser)				# 使用 curl 访问 Github API 下载用户信息【JSON格式文件】
+			echo $result > $tmpuserdump							# 将用户信息保存到临时文件
+
+			name=$(jq .name $tmpuserdump -r)					# 使用 jq 提取需要的字段
+			created_at=$(jq .created_at $tmpuserdump -r)		# created_at 字段的值类似于 2009-02-07T16:07:32Z
+
+			joinyear=$(echo $created_at | cut -f1 -d"-")		# 使用 cut 从 JSON文件中的created_at字段中提取年份
+			echo $name joined Github in $joinyear				
+		虽然这个脚本看起来不错并且在大多数情况下都可以工作，但总有一些地方可以改进，例如使脚本更加健壮并提供可操作的错误消息。 
+		在这种情况下，考虑使用 bashing【https://github.com/xsc/bashing】、rerun【https://github.com/rerun/rerun】或 rr【https://taarr.com/】 等框架来提高模块化性。
+5、补充
+	》Shell Scripts
+		Shell Style Guide【https://google.github.io/styleguide/shellguide.html】
+		Bash Best Practices【https://bertvv.github.io/cheat-sheets/Bash.html】
+		Bash Scripting Cheatsheet【https://bertvv.github.io/cheat-sheets/Bash.html】
 
 
 Access Control
@@ -385,13 +492,11 @@ Access Control
 		》“An Introduction to Linux Access Control Lists (ACLs)” via Red Hat【https://www.redhat.com/sysadmin/linux-access-control-lists】
 
 
-
-				
-			
-
-			
-
-
-
-		
+FileSystems
+	“一切皆文件”的UNIX概念在Linux中依然存在，虽然这不是100%正确，但Linux中的大多数资源确实是文件。
+	还有其他东西在Linux中也以文件形式公开【如设备和伪设备】—— echo "Hello modern Linux users" > /dev/pst/0 ，它将 Hello modern Linux users 打印到屏幕上。
+	虽然可能不会将这些资源与文件关联，但可以使用与常规文件相同的方法和工具来访问它们。
+	所有这些东西的共同点是标准化、统一的接口：打开文件、收集文件信息、写入文件等。在Linux中，文件系统提供了这种统一的接口。这个接口，再加上Linux将文件视为字节流，而不对结构有任何期望，使我们能够构建可处理各种不同文件类型的工具。
+1、基础
+	
 
