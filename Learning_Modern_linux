@@ -498,5 +498,214 @@ FileSystems
 	虽然可能不会将这些资源与文件关联，但可以使用与常规文件相同的方法和工具来访问它们。
 	所有这些东西的共同点是标准化、统一的接口：打开文件、收集文件信息、写入文件等。在Linux中，文件系统提供了这种统一的接口。这个接口，再加上Linux将文件视为字节流，而不对结构有任何期望，使我们能够构建可处理各种不同文件类型的工具。
 1、基础
+	一般来说，文件系统是在内核【kernel】中实现的。虽然出于性能原因，文件系统通常在内核空间中实现，但也可选择在用户空间中实现它们。
+	见“Filesystem in Userspace（FUSE）documentation”【https://www.kernel.org/doc/html/latest/filesystems/fuse.html】和 libfuse project site【https://github.com/libfuse/】。
+	术语定义:
+		①	Drive
+			物理（physical）块设备，如硬盘驱动器（HDD）或固态驱动器（SSD）。在虚拟机环境中，还可以模拟驱动器——如，/dev/sda（SCSI设备）或/dev/sdb（SATA设备）或/dev/hda（IDE设备）
+		②	Partition
+			可以在逻辑上将驱动器划分为分区，即一组存储扇区。如在HDD上创建两个分区，然后将显示为 /dev/sdb1 和 /dev/sdb2 。
+		③	Volume
+			卷有点类似于分区，但它更灵活，并且也针对特定文件系统进行格式化。
+		④	Super block
+			格式化后，文件系统在开头有一个特殊的部分，用于捕获文件系统的元数据。这包括文件系统类型、块、状态以及每个块有多少inode等内容。
+		⑤	Inodes
+			在文件系统中，inodes存储有关文件的元数据【如，大小、所有者、路径、日期和权限】。但，inodes不存储文件名和实际数据。它保存在目录中，目录实际上只是一种特殊的常规文件，将inodes映射到文件名。
+	查看系统中存在哪些驱动器、分区和卷：
+		# lsblk --exclude 7											# 列出所有块设备，但排除伪（循环）设备
+		NAME        MAJ:MIN RM   SIZE RO TYPE MOUNTPOINTS
+		sda           8:0    0    20G  0 disk						# 磁盘驱动器为 sda，总量为20G
+		├─sda1        8:1    0     1G  0 part /boot					# 这里有两个分区，sda1 是 启动分区
+		└─sda2        8:2    0    19G  0 part
+		  ├─cs-root 253:0    0    17G  0 lvm  /						# 第二个分区【sda2】，包含两个卷
+		  └─cs-swap 253:1    0     2G  0 lvm  [SWAP]
+		sr0          11:0    1 112.8M  0 rom
+		sr1          11:1    1   9.1G  0 rom
+	查看正在使用的文件系统：
+		# findmnt -D -t nosquashfs												# 列出文件系统，squashfs 类型【https://www.kernel.org/doc/html/latest/filesystems/squashfs.html】除外。
+		SOURCE              FSTYPE     SIZE   USED  AVAIL USE% TARGET
+		devtmpfs            devtmpfs     4M      0     4M   0% /dev
+		tmpfs               tmpfs      1.8G      0   1.8G   0% /dev/shm
+		tmpfs               tmpfs    723.5M     9M 714.4M   1% /run
+		/dev/mapper/cs-root xfs       16.9G   1.9G    15G  12% /
+		/dev/sda1           xfs        960M 233.9M 726.1M  24% /boot
+		tmpfs               tmpfs    361.7M      0 361.7M   0% /run/user/1000
+		tmpfs               tmpfs    361.7M      0 361.7M   0% /run/user/0
+	squashfs 最初为CD开发的专用只读压缩文件系统，现在也用于快照。
+	可以更进一步，查看各个文件系统对象，如目录或文件：
+		# stat anaconda-ks.cfg
+		  文件：anaconda-ks.cfg
+		  大小：807             块：8          IO 块：4096   普通文件			# 文件类型信息
+		设备：fd00h/64768d      Inode：17800211    硬链接：1					# 设备和索引节点信息
+		权限：(0600/-rw-------)  Uid：(    0/    root)   Gid：(    0/    root)
+		环境：system_u:object_r:admin_home_t:s0
+		最近访问：2023-12-20 06:06:35.042665672 +0800
+		最近更改：2023-12-03 19:24:09.799711336 +0800
+		最近改动：2023-12-03 19:24:09.799711336 +0800
+		创建时间：2023-12-03 19:24:09.553178493 +0800
+	低级文件系统和块设备命令：
+		命令				使用场景
+		lsblk				列出所有块设备
+		fdisk，parted		管理磁盘分区
+		blkid				显示块设备属性【如UUID】
+		hwinfo				显示硬件信息
+		file -s				显示文件系统和分区信息
+		stat，df -i，ls -i	显示并列出inode相关信息
+	在文件系统上下文中会遇到另一个术语【链接】。有时想要引用具有不同名称的文件或提供快捷方式。Linux中有两种类型的链接：
+		①	硬链接【hard links】
+			引用inode，不能引用目录。它们也不能跨文件系统。
+		②	符号链接【symbolic links or symlinks】
+				特殊文件，其内容表示另一个文件的路径的字符串。
+		创建硬链接：
+			ln myfile somealias
+		创建符号链接：
+			ln -s myfile somesoftalias
+2、虚拟文件系统
+	Linux通过称为虚拟文件系统（VFS【https://elixir.bootlin.com/linux/latest/source/Documentation/filesystems/vfs.rst】）的抽象，设法提供对多种资源（内存中、本地附加或网络存储）的类似文件的访问。
+	基本思想是在客户端（系统调用）和实现具体设备或其他类型资源的操作的各个文件系统之间引入一个间接层。这意味着VFS将通过操作（打开、读取、查找）于实际实现细节分开。
+	VFS 是内核中的一个抽象层，它为客户端提供基于文件范例的访问资源的通用方法。Linux中的文件没有任何规定的结构；它只是一个字节流。由客户端决定字节的含义。VFS抽象了对不同类型的文件系统的访问：
+	①	本地文件系统【如，ext3，XFS，FAT，和NTFS】
+		这些文件系统使用驱动程序来访问本地块设备，如HDD或SSD。
+	②	内存中文件系统【如，tmpfs】
+		不受长期存储设备支持，而是驻留在内存（RAM）中。
+	③	伪文件系统【如，procfs】
+		这些文件系统本质上也是内存中的。它们用于内核接口和设备抽象。
+	④	网络文件系统【如，NFS，Netware（nee Novell）】
+		这些文件系统也使用驱动程序；然而，实际数据所在的存储设备不是本地连接的而是远程的。这意味着驱动程序涉及到网络操作。
+	与文件相关的系统调用有超过100个；然而，从本质上讲，这些操作可以分为几个类别，如：
+		类别				系统调用【syscall】示例
+		Inodes				chmod，chown，stat
+		Files				open，close，seek，truncate，read，write
+		Directories			chdir，getcwd，link，unlink，rename，symlink
+		Firesystems			mount，flush，chroot
+		Others				mmap，poll，sync，flock
+	许多 VFS 系统调用分派到特定于文件系统的实现。 对于其他系统调用，有 VFS 默认实现。 此外，Linux内核定义了相关的VFS数据结构——见 include/linux/fs.h【https://elixir.bootlin.com/linux/latest/source/include/linux/fs.h】。如：
+		inode	核心文件系统对象，捕获类型、所有权、权限、链接、指向包含文件数据的块的指针、创建和访问统计信息等。
+		file	表示一个打开的文件（包括路径、当前位置和inode）
+		dentry	存储其父目录和子目录（目录条目）
+		super_block	表示一个文件包含挂载信息
+		Others	包括 vfsmount 和 file_system_type
+	Ⅰ	逻辑卷管理器
+		虽然可以使用分区来划分驱动器，但分区很难使用，特别是需要调整大小（更改存储空间）时。逻辑卷管理器（LVM）在物理实体（如驱动器或分区）和文件系统之间使用一个间接层。
+		这样就形成了一种设置，允许通过资源池实现无风险、零停机扩展和自动存储扩展。多个物理卷【PV】可以组成一个卷组【VG】，卷组又可以分成多个逻辑卷【LV】，在逻辑卷上创建文件系统。
+		①	逻辑卷【PV】
+			可以是一个磁盘分区，整个磁盘驱动，和其他设备
+		②	逻辑卷【LV】
+			是从卷组【VG】创建的块设备。这些在概念上与分区相当。必须在LV上创建文件系统才能使用它。可以在使用时轻松调整LV的大小。
+		③	卷组【VG】
+			是一组PV和LV之间的中间人。将VG视为共同提供资源的PV池。
+		要使用 LVM 管理卷【https://unixutils.com/lvm-cheat-sheet-quick-reference/】，需要许多工具；然而，它们的命名一致且相对易于使用：
+		①	PV管理工具	lvmdiskscan、pvdisplay、pvcreate、pvscan
+		②	VG管理工具	vgs、vgdisplay、vgcreate、vgextend
+		③	LV管理工具	lvs、lvscan、lvcreate
+		》列出逻辑卷
+			# lvscan
+			  ACTIVE            '/dev/cs/swap' [1.00 GiB] inherit
+			  ACTIVE            '/dev/cs/root' [<8.00 GiB] inherit
+		》显示卷组
+			# vgs
+			  VG #PV #LV #SN Attr   VSize  VFree
+			  cs   1   2   0 wz--n- <9.00g    0 
+		》显示物理卷
+			# pvdisplay 
+			  --- Physical volume ---
+			  PV Name               /dev/sda2
+			  VG Name               cs
+			  PV Size               <9.00 GiB / not usable 3.00 MiB
+			  Allocatable           yes (but full)
+			  PE Size               4.00 MiB
+			  Total PE              2303
+			  Free PE               0
+			  Allocated PE          2303
+			  PV UUID               RxkQml-RRIM-YEtJ-Y5vr-S6Z7-GZyq-YMclHO
+		无论使用分区还是LV，使用文件系统还需要执行两个步骤。
+	Ⅱ	文件系统操作
+		在给定分区或逻辑卷（使用LVM创建）的情况下创建文件系统。涉及两个步骤：创建文件系统，然后安装它，或将其插入文件系统树中。
+		①	创建文件系统
+		为了使用文件系统，第一步是创建一个。这意味着正在设置组成文件系统的管理部分，并将分区或卷作为输入。一旦掌握了所有信息，就可以使用mkfs创建文件系统。
+		mkfs接受两个主要输入：要创建的文件系统的类型和要在其上创建文件系统的设备（如，逻辑卷），如：
+			mkfs -t ext4 \					# 创建 ext4 类型的文件系统
+				/dev/some_vg/some_lv		# 在逻辑卷【/dev/some_vg/some_lv】上床架文件系统
+		创建文件系统没有太多内容，因此主要工作是弄清楚要使用什么文件系统类型。使用 mkfs 创建文件系统后，可以使其在文件系统树中可用。
+		②	挂载文件系统
+		挂载文件系统意味着将其附加到文件系统树（从 / 开始）。使用 mount 附加文件系统。mount 需要两个主要输入：要附加的文件系统和文件系统树中的位置。
+		此外，还可以提供其他输入，包括挂载选项（通过 -o），如只读，以及绑定挂载（通过 --bind ），用于将目录挂载到文件系统树中。
+		也可以单独使用 mount 。列出现有挂载：
+			# mount -t ext4,tmpfs
+			tmpfs on /dev/shm type tmpfs (rw,nosuid,nodev,seclabel,inode64)
+			tmpfs on /run type tmpfs (rw,nosuid,nodev,seclabel,size=188124k,nr_inodes=819200,mode=755,inode64)
+			tmpfs on /run/user/0 type tmpfs (rw,nosuid,nodev,relatime,seclabel,size=94060k,nr_inodes=23515,mode=700,inode64)
+		必须确保使用创建文件系统时使用的类型来挂载文件系统。如使用 mount -t vfat /dev/sdxX2 /media 来挂载SD卡，必须知道SD卡是使用vfat格式化的。可以使用 -o 选项让 mount 尝试所有文件系统，直到其中一个可以工作。
+		此外，挂载仅在系统运行期间有效，因此为了使其永久有效，需要使用 fstab 文件 (/etc/fstab)【开机自动挂载】。
+		③	常见的文件系统布局
+		一旦有了一个文件系统，一个明显的挑战就是想出一种组织其内容的方法。可能想要组织诸如程序存储位置、配置数据、系统数据和用户数据之类的内容。
+		将这种目录及其内容的组织称为文件系统布局。正式地，该布局称为文件系统层次结构标准（FHS【https://refspecs.linuxfoundation.org/FHS_3.0/fhs/index.html】）。
+		它定义目录、包括其结构和推荐内容。Linux基金会维护FHS，它是Linux发行版遵循的一个很好的起点。
+		FHS 背后的想法值得称赞。 然而，在实践中会发现文件系统布局很大程度上取决于使用的 Linux 发行版。 因此，建议使用 man hier 命令来了解具体设置。
+		常见的顶级目录：
+			目录			说明
+			bin，sbin		系统程序和命令（通常链接到 /usr/bin 和 /usr/sbin）
+			boot			内核镜像和相关组件
+			dev				设备（终端，驱动等）
+			etc				系统配置文件
+			home			用户家目录
+			lib				共享的系统库
+			mnt，media		可移动媒介的挂载点
+			opt				发行版特定；可以托管包管理器文件
+			proc，sys		内核接口
+			tmp				用于临时文件
+			usr				用户程序（通常只读）
+			var				用户程序（日志，备份，网络缓冲等）
+3、伪文件系统
+	伪文件系统只是假装是文件系统，以便可以以通常的方式（ls、cd、cat）与它们交互，但实际上它们包装了一些内核接口。接口可以是一系列东西，包括以下内容：
+		①	有关进程的信息
+		②	与设备的交互【如键盘】
+		③	实用程序【如，可用作数据源或接收器的特殊设备】
+	Ⅰ	procfs
+		Linux从Unix中继承 /proc 文件系统（procfs）。最初的目的是从内核发布与进程相关的信息，使其可供ps或free等系统命令使用。它的结构规则很少，允许读写访问，随着时间的推移，许多东西都进入其中。一般，可以在那里找到两类信息：
+			①	/proc/PID 中的每个进程信息。这是内核通过以PID作为目录名的目录公开的与进程相关的信息。
+			②	其他信息，如挂载、网络相关信息、TTY驱动程序、内存信息、系统版本和正常运行时间。
+		procfs中的每个进程信息（值得关注）
+			条目		类型			信息
+			attr		目录			安全属性
+			cgroup		文件			控制组
+			cmdline		文件			命令行
+			cwd			链接			当前工作目录
+			environ		文件			环境变量
+			exe			链接			进程的可执行文件
+			fd			目录			文件描述符
+			io			文件			存储I/O（字节/字符 读取和写入）
+			limits		文件			资源限制
+			mem			文件			使用中的内存
+			mounts		文件			使用中的挂载
+			net			目录			网络统计
+			stat		文件			进程状态
+			syscall		文件			系统调用使用
+			task		目录			每个任务（线程）信息
+			timers		文件			定时器信息
+		要查看其实际情况，检查一下进程状态。这里使用status而不是stat，它没有人类可读的标签：
+			# cat /proc/self/status | head -10		# 获取当前运行命令【cat】的进程状态
+			Name:   cat
+			Umask:  0022
+			State:  R (running)						# 当前状态（运行中，在CPU中）
+			Tgid:   1346
+			Ngid:   0
+			Pid:    1346							# 当前进程的PI的
+			PPid:   1083							# 命令的父进程ID
+			TracerPid:      0
+			Uid:    0       0       0       0
+			Gid:    0       0       0       0
+		从网络空间收集信息：
+			# cat /proc/self/net/arp 
+			IP address       HW type     Flags       HW address            Mask     Device
+			192.168.3.1      0x1         0x2         14:51:20:94:4f:87     *        ens33
+			192.168.3.4      0x1         0x2         0c:54:15:88:17:5b     *        ens33
+		可以从这个特殊的 /proc/self/net/arp 中收集有关当前进程的ARP信息。
+
+
+
+
+
+
 	
 
