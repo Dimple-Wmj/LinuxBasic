@@ -701,8 +701,274 @@ FileSystems
 			192.168.3.1      0x1         0x2         14:51:20:94:4f:87     *        ens33
 			192.168.3.4      0x1         0x2         0c:54:15:88:17:5b     *        ens33
 		可以从这个特殊的 /proc/self/net/arp 中收集有关当前进程的ARP信息。
+	Ⅱ	sysfs
+		/sys 文件系统（sysfs）是一种特定于Linux的结构化方式，让内核使用标准化布局公开选择信息（如，有关设备的信息）。sysfs中的目录如下：
+			①	block/		该目录符号链接到已发现的块设备。
+			②	bus/		在此目录中，可以找到内核支持的每种物理总线类型的一个子目录
+			③	class/		该目录包含设备类型
+			④	dev/		该目录包含两个子目录：block/【块设备】和 char/【字符设备】，结构是 major-ID:minor-ID 。
+			⑤	devices/	在此目录中，内核提供了设备树的表示
+			⑥	firmware/	通过这些目录，可以管理特定于固件的属性
+			⑦	fs/			该目录包含一些文件系统的子目录
+			⑧	module/		在这些目录中，可以找到内核加载的每个模块的子目录。
+		sysfs 中还有更多子目录，但有些是新的和/或会受益于更好的文档。会发现 sysfs 中重复的某些信息在 procfs 中也可用，但其他信息（例如内存信息）仅在 procfs 中可用。
+		查看块设备信息，如：
+			# ls -al /sys/block/sda/
+	Ⅲ	devfs
+		/dev 文件系统（devfs）托管设备特殊文件，代表从物理设备到随机数发生器或只写数据接收器等设备。通过devfs可用的和管理的设备有：
+			①	块设备		以块的形式处理数据，如存储设备（驱动器）
+			②	字符设备	逐个字符地处理事物，如终端、键盘或鼠标
+			③	特殊设备	生成数据或允许操纵它，包括 /dev/null 或 /dev/random。
+		获取一个随机字符串，可执行以下操作：
+			tr -dc A-Za-z0-9 < /dev/urandom
+		这里生成一个42个字符地随机序列，其中包括大写字母、小写字母和数字字符。虽然 /dev/urandom 看起来像一个文件并且可以像文件一样使用，但它确实是一个特殊的文件，它使用许多源生成（或多或少）随机输出。
+			# echo "something" > /dev/tty
+			something
+		/dev/tty 代表终端，通过这个命令，将 something 发送给它。
+4、常规文件
+	Ⅰ	通用文件系统
+		常规文件的通用文件系统
+			文件系统	Linux开始支持年份	文件大小	卷大小		文件数			文件名长度
+			ext2			1993			2TB			32TB		10^18			255 字符
+			ext3			2001			2TB			32TB		可变			255 字符
+			ext4			2008			16TB		1EB			40亿			255 字符
+			btrfs			2009			16EB		16EB		2^18			255 字符
+			XFS				2001			8EB			8EB			2^64			255 字符
+			ZFS				2006			16EB		2^128字节	每个目录10^14	255 字符
+			NTFS			1997			16TB		256TB		2^32			255 字符
+			vfat			1995			2GB			N/A			每个目录2^16	255 字符
+		广泛使用的常规文件文件系统：
+			①	ext4【https://wiki.archlinux.org/title/Ext4 】	
+				一种广泛使用的文件系统，现在许多发行版都默认使用。它是ext3的向后兼容演变。与ext3一样，它提供日志功能，即将更改记录在日志中，以便在最坏的情况下（如，断电），恢复速度很快。
+				这是一个很好的通用选择，ext4 手册【https://www.man7.org/linux/man-pages/man5/ext4.5.html 】
+			②	XFS【https://wiki.archlinux.org/title/XFS 】
+				日志文件系统最初由 Silicon Graphics (SGI) 在 20 世纪 90 年代初为其工作站设计。 它提供对大文件和高速 I/O 的支持，例如现在在 Red Hat 发行版系列中使用。
+			③	ZFS【https://en.wikipedia.org/wiki/ZFS 】
+				ZFS 最初由 Sun Microsystems 于 2001 年开发，结合了文件系统和卷管理器功能。
+			④	FAT【https://en.wikipedia.org/wiki/FAT_filesystem_and_Linux 】
+				这实际上是 Linux 的 FAT 文件系统系列，其中最常用的是 vfat。 主要用例是与 Windows 系统以及使用 FAT 的可移动介质的互操作性。 许多围绕卷的固有考虑因素并不适用。
+			驱动器并不是唯一可以存储数据的地方。
+	Ⅱ	内存中文件系统
+		有许多可用的内存文件系统；有些是通用目的，有些则有非常具体的用例。一些广泛使用的内存文件系统如下：
+			①	debugfs【https://www.kernel.org/doc/html/latest/filesystems/debugfs.html 】
+				用于调试的专用文件系统；常见挂载方式：mount -t debugfs none /sys/kernel/debug
+			②	loopfs【https://man7.org/linux/man-pages/man4/loop.4.html 】
+				允许将文件系统映射到块而不是设备。
+			③	pipefs
+				安装在管道上的特殊（伪）文件系统：启用管道。
+			④	swapfs【https://linux.die.net/EVMSUG/x3863.html 】
+				用于实现交换（不可挂载）
+			⑤	tmpfs【https://www.kernel.org/doc/html/latest/filesystems/tmpfs.html 】
+				将文件数据保存在内核缓存中的通用文件系统。它速度块但非持久（断电意味着数据丢失）。
+	Ⅲ	写时复制文件系统
+		写时复制（CoW）是一个巧妙地概念，可以提高I/O速度，同时使用更少的空间。实现原理如下：
+			①	原始文件【file1】假设由A，B和C块组成，复制为目标文件【file2】，仅复制元数据（指向块的指针），而不是复制实际块。由于仅创建元数据，因此速度很快并且不会占用太多空间。
+			②	当目标文件【file2】被修改（假设C中的某些内容发生更改）时，只有块C才会被复制：创建一个名为C'的新块，虽然file2仍然指向（使用）未修改的块A和B，但它现在使用新块（C'）来捕获新数据。
+		联合挂载【union mounts https://en.wikipedia.org/wiki/Union_mount 】，其想法是，可以将多个目录组合（挂载）到一个位置，这样，对于结果目录的用户来说，该目录似乎包含所有参与目录的组合内容（或：并集）。
+		使用联合挂载时，经常遇到的术语“上层文件系统”和“下层文件系统”，这暗示了挂载的分层顺序。详情见“Unifying Filesystems with Union Mounts”【https://lwn.net/Articles/312641/ 】
+		对于联合挂载，细节决定成败。必须制定有关当文件存在于多个位置时会发生什么或写入或删除文件意味着什么的规则。
+		CoW在Linux文件系统中的实现如下：
+			①	Unionfs【https://unionfs.filesystems.org/ 】
+				Unionfs为CoW文件系统实现了联合挂载。它允许在安装时使用优先级透明地覆盖来自不同文件系统的文件和目录。它广泛流行并在CD-ROM和DVD环境中使用。
+			②	OverlayFS【https://www.kernel.org/doc/html/latest/filesystems/overlayfs.html 】
+				Linux 的联合挂载文件系统实现于 2009 年推出，并于 2014 年添加到内核中。使用 OverlayFS，一旦打开文件，所有操作都直接由底层（较低或较高）文件系统处理。
+			③	AUFS【https://en.wikipedia.org/wiki/Aufs 】
+				另一种事项内核联合挂载的尝试，AUFS尚未合并到内核中。它在Docker中默认使用；现在Docker默认使用带有存储驱动程序Overlay2的OverlayFS。
+			④	btrfs【https://archive.kernel.org/oldwiki/btrfs.wiki.kernel.org/index.php/Main_Page.html 】
+				btrfs是b-tree system的缩写，是最初由Oracle公司设计的CoW。如今，许多公司都为btrfs的开发做出了贡献，包括Facebook、Intel、SUSE和Red Hat。
+				它具有许多功能，例如快照（用于基于软件的 RAID）和自动检测静默数据损坏。 这使得 btrfs 非常适合专业环境——例如，在服务器上。
+扩展
+	Ⅰ	Basics
+	“UNIX File Systems: How UNIX Organizes and Accesses Files on Disk”【https://www.oakton.edu/user/2/rjtaylor/CIS228/Slide/UNIX%20File%20Systems%202.pdf 】
+	“KHB: A Filesystems Reading List”【https://lwn.net/Articles/196292/ 】
+	Ⅱ	VFS
+	“Overview of the Linux Virtual File System”【https://www.kernel.org/doc/html/latest/filesystems/vfs.html 】
+	“Introduction to the Linux Virtual Filesystem (VFS)”【https://www.starlab.io/blog/introduction-to-the-linux-virtual-filesystem-vfs-part-i-a-high-level-tour 】
+	“LVM” on ArchWiki【https://wiki.archlinux.org/title/LVM 】
+	“LVM2 Resource Page”【https://sourceware.org/lvm2/ 】
+	“How to Use GUI LVM Tools”【https://www.linuxjournal.com/content/review-gui-lvm-tools 】
+	“Linux Filesystem Hierarchy”【https://tldp.org/LDP/Linux-Filesystem-Hierarchy/Linux-Filesystem-Hierarchy.pdf 】
+	“Persistent BPF Objects”【https://lwn.net/Articles/664688/ 】
+	Ⅲ	Regular files
+	“Filesystem Efficiency—Comparison of EXT4, XFS, BTRFS, and ZFS” thread on reddit【https://www.reddit.com/r/DataHoarder/comments/f5uzv8/filesystem_efficiancy_comparision_of_ext4_xfs/ 】
+	“Linux Filesystem Performance Tests”【https://www.linux-magazine.com/Online/Features/Filesystems-Benchmarked 】
+	“Comparison of File Systems for an SSD” thread on Linux.org【https://www.linux.org/threads/comparison-of-file-systems-for-an-ssd.28780/ 】
+	“Kernel Korner—Unionfs: Bringing Filesystems Together”【https://www.linuxjournal.com/article/7714 】
+	“Getting Started with btrfs for Linux”【https://opensource.com/article/20/11/btrfs-linux 】
+
+				
+Applications, Package Management, and Containers
+1、基础
+	①	程序【program】
+		这通常是Linux可以加载到内存并执行的二进制文件或Shell脚本。引用该实体的另一种方式是可执行的【executable】。可执行文件的类型决定了运行它的确切方式。如shel将解释并执行shell脚本。
+	②	进程【progress】
+		基于程序的运行实体，在不休眠时加载到内存中并使用CPU或I/O。
+	③	守护进程【daemon】
+		有时也称为服务，这是一个为其他进程提供某种功能的后台进程。如，打印机守护程序允许您进行打印。 还有用于 Web 服务、日志记录、时间以及您日常依赖的许多其他实用程序的守护程序。
+	④	应用程序【application】
+		一个程序，包括它的依赖项。通常是一个实质性的程序，包括用户界面。通常将术语“应用程序”与程序、其配置及其数据的整个生命周期联系起来：从查找和安装到升级到删除。
+	⑤	包【package】
+		包含程序和配置的文件；用于分发软件应用程序。
+	⑥	包管理器【package manager】
+		一种程序，将包作为输入，并根据其内容和用户指令，在Linux环境中安装它，升级它或删除它。
+	⑦	供应链【supply chain】
+		软件生产商和分销商的集合，使您能够查找和使用基于软件包的应用程序；
+	⑧	开机【booting】
+		Linux中的启动顺序涉及硬件和操作系统初始化步骤，包括加载内核和启动服务（或守护进程）程序，目的是使Linux进入可使用的状态。
+2、Linux启动过程
+	Linux启动过程通常是一个多阶段的工作，其中硬件和内核一起工作。启动过程如下，包括五个步骤：
+		|				Hardware				 	|	Kernel space	|		User space		 |
+			开机 ——> UEFI 或 BIOS ——> Boot loader   ——> 	Kernel  	——> Init ——> 其他用户空间
+	①	UEFI or BIOS
+		在现代环境中，统一可扩展固件接口（UEFI）规范定义了启动配置（存储在NVRAM中）和启动加载程序。
+		在较旧的系统中，在此步骤中，开机自检（POST）完成后，基本I/O系统（BIOS）将初始化硬件（管理I/O端口和中断）并将控制权移交给引导加载程序。
+	②	boot loader
+		引导加载程序有一个目标：引导内核。根据启动介质的不同，细节可能略有不同。有一系列引导加载程序选项，包括当前的（如GRUB 2、systemd-boot、SYSLINUX、rEFInd）和旧版（如LILO、GRUB 1）。
+	③	kernel
+		内核通常以压缩形式位于/boot 目录中。这意味着第一步是将内核提取并加载到内存中。在初始化其子系统、文件系统和驱动程序后，内核将控制权移交给init系统，引导过程随之正确结束。
+	④	init
+		init系统负责在系统范围内启动守护进程（服务进程）。该init进程是进程层次结构的根，其进程ID（PID）为1。PID为1的进程将一直运行，直到关闭系统电源。
+		除了负责启动其他守护进程之外，PID 1进程传统上还负责处理孤儿进程【不再具有父进程的进程】。
+	⑤	其他用户空间
+		通常，在此之后会发生一些其他用户空间级初始化，具体取决于环境：
+		》通常会进行终端、环境和shell初始化。
+		》考虑到用户偏好和配置，启动了用于具有GUI的桌面环境的显示管理器、图形服务器等。
+	Gentoo wiki 对可用的init系统进行了很好的比较【https://wiki.gentoo.org/wiki/Comparison_of_init_systems】。
+	》补充【System V Init】
+		System V风格的init程序（或简称SysV init）【https://savannah.nongnu.org/projects/sysvinit 】是Linux中的传统init系统。
+		Linux从Unix继承了SysV，它定义了所谓的运行级别（系统状态【如暂停】，单用户、多用户模式或GUI模式），其配置通常存储在 /etc/init.d 中。
+		然而，启动守护进程的顺序方式和特定于发行版的配置处理使得这成为一个不太可移植的选项。
+3、systemd
+	systemd【https://systemd.io/ 】 最初是一个 init 系统，是initd的替代品。但现在它是一个强大的管理程序，包括日志记录、网络配置和网络时间同步等功能。
+	它提供了一种灵活、可移植的方式来定义守护进程及其依赖项，并提供了一个统一的接口来控制配置。目前几乎所有的Linux发行版都在使用systemd。
+	特别是，systemd 通过执行以下操作来解决以前init系统的缺点：
+		》提供统一的方式来管理跨发行版的启动
+		》实施更快、更易于理解的服务配置
+		》提供现代化的管理套件，包括监控、资源使用控制（通过cgroup）和内置审计
+	此外，init 在初始化时按顺序（即按字母数字顺序）启动服务，而systemd可以启动任何满足其依赖关系的服务，从而可能加快启动时间。
+	通过单元【unit】告诉 systemd 运行什么、何时运行以及如何运行。
+	Ⅰ	Units
+		systemd 中的单元【unit】是具有不同语义的逻辑分组，具体取决于其功能和/或其目标资源。systemd根据目标资源区分许多单元：
+			①	service 单元	描述如何管理服务或应用程序
+			②	target 单元		捕获依赖关系
+			③	mount 单元		定义一个挂载点
+			④	timer 单元		为cron 作业等定义计时器
+		其他不太重要的单元类型包括：
+			①	socket			描述网络或IPC套接字
+			②	device			用于 udev 或 sysfs 文件系统
+			③	automount		配置自动挂载点
+			④	swap			描述交换空间
+			⑤	path			用于基于路径的激活
+			⑥	snapshot		允许在更改后重建系统的当前状态
+			⑦	slice			与cgroup关联
+			⑧	scope			管理外部创建的系统进程集
+		为了被 systemd 识别，一个单元需要被序列化成一个文件。systemd在多个位置查找单元文件。三个最重要的文件路径如下：
+			①	/lib/systemd/system		Package-installed units					
+			②	/etc/systemd/system		System admin-configured units
+			③	/run/systemd/system		Nonpersistent runtime modifications
+	Ⅱ	使用 systemctl 进行管理
+		用于与 systemd 交互以管理服务的工具是 systemctl【https://man7.org/linux/man-pages/man1/systemctl.1.html 】
+		有用的 systemd 命令如下：
+			命令									用法
+			systemctl enable XXX.service			启用服务；设置开机自启
+			systemctl daemon-reload					重新加载所有单元文件并重新创建整个依赖关系树
+			systemctl start XXX.service				启动服务
+			systemctl stop XXX.service				停止服务
+			systemctl restart XXX.service			停止，然后启动服务
+			systemctl reload XXX.service			向服务发出重新加载命令；回退重新启动
+			systemctl kill XXX.service				停止服务执行
+			systemctl status XXX.service			获取服务状态的简短摘要，包括一些日志行
+		注意，systemctl 还提供了更多命令，从依赖项管理和查询到控制整个系统（例如重新启动）。systemd 生态系统还有许多其他可能会方便的命令行工具。 这包括但不限于以下内容：
+			bootctl【https://man7.org/linux/man-pages/man1/bootctl.1.html 】
+				允许检查引导加载程序状态并管理可用的引导加载程序。
+			timedatectl
+				允许设置和查看 时间和日期相关信息【https://opensource.com/article/20/6/time-date-systemd 】
+			coredumpctl
+				使您能够处理保存的核心转储。排除故障时请考虑使用此工具
+	Ⅲ	使用 journalctl 进行监控
+		日志【journal】是 systemd 的一个组件；从技术上讲，它是由 systemd-journald守护进程管理的二进制文件，为 systemd 组件记录的所有消息提供集中位置。可通过journalctl 查看 systemd 管理的日志。
+	Ⅳ	示例
+		定义一个类型为 service 的 systemd 单元文件【告诉 systemd 如何启动应用程序】，如：
+			# greeter.service
+			[Unit]
+			Description=My Greeting Service		# 服务描述，当使用 systemctl status 时，会显示
+
+			[Service]
+			Type=oneshot		
+			ExecStart=/home/miggi/greeter.sh	# 应用程序的路径
+		定义一个 timer unit【https://wiki.archlinux.org/title/Systemd/Timers 】来每隔一个小时启动greeter 服务。如：
+			# greeter.timer
+			[Unit]
+			Description=Runs Greeting service at the top of the hour
+
+			[Timer]
+			OnCalendar=hourly					# 使用 systemd 时间和日期格式【https://www.freedesktop.org/software/systemd/man/latest/systemd.time.html 】时间表
+		将定义的单元文件放在 /run/systemd/system 中，以便 systemd 识别它们。现在可以使用 greeter 定时器了【因为当将其复制到相应的目录时，systemd会自动拾取它】。
+			# systemctl start greeter.timer
+			# systemctl status greeter.timer
+			● greeter.timer - Runs Greeting service at the top of the hour
+			     Loaded: loaded (/run/systemd/system/greeter.timer; static)
+			     Active: active (waiting) since Fri 2023-12-22 06:03:21 CST; 3s ago
+			      Until: Fri 2023-12-22 06:03:21 CST; 3s ago
+			    Trigger: Fri 2023-12-22 07:00:00 CST; 56min left
+			   Triggers: ● greeter.service
+			
+			12月 22 06:03:21 localhost.localdomain systemd[1]: Started Runs Greeting service at the top of the hour.
+		可以通过journalctl检查日志，如：
+			# journalctl -f -u greeter.service			# 使用 journalctl 查看并跟踪【-f】greeter.service 单元（使用-u选择）的日志。
+4、Linux 应用程序供应链【supply chain】
+	供应链的含义是，一个由组织和个人组成的向消费者提供产品的系统。这里产品时由软件工件组成的应用程序，消费者则是使用应用程序的人，也可以将其视为管理应用程序的工具。
+	Linux应用程序供应中的三个不同领域如下：
+		①	软件维护者【Software maintainers】
+			其中包括个人开发人员、开源项目和公司，例如独立软件供应商 (ISV)，它们生产软件工件并将其发布，例如作为存储库 (repo) 的包。
+		②	仓库【Repository】
+			这列出了包含应用程序的全部或部分以及元数据的包。该包通常捕获应用程序的依赖项。依赖项是应用程序运行所需的其他包。保持这些依赖关系是最新的很困难。
+		③	工具【Tooling（包管理器）】
+			在目标系统方面，这可以在存储库中查找软件包，并按照用户的指示安装、更新和删除应用程序。注意，一个或多个包可以代表应用程序及其依赖项。
+	有许多选项可用于包和依赖项管理，例如传统的包管理器、基于容器的解决方案以及更新的方法。有关包和依赖项管理选项的三个主要类别的说明如下：
+		①	传统包管理器
+			通常区分低级【如，RPM】和高级【如，yum，dnf】工具。如包管理器可以解决依赖关系并提供高级接口（安装、更新、删除），将其称为高级包管理器。
+		②	基于容器的解决方案
+			这些最初来自服务器和云计算领域。 考虑到它们的功能，应用程序管理是一种用例，但不一定是主要用例。 换句话说，作为开发人员，会喜欢容器，因为它们能够轻松测试事物并轻松交付生产就绪的应用程序。
+		③	现代包管理器
+			这些根源于桌面环境，其主要目标是让最终用户尽可能轻松地使用应用程序。
+5、包和包管理器
+	包格式和包管理器通常源自两个主要的 Linux 发行版系列：Red Hat（RHEL、Fedora、CentOS 等）和 Debian 的系统（Debian、Ubuntu 等）。相关地两个概念如下：
+		①	包【package】
+			从技术上讲，文件通常是压缩的并且可能包含元数据。
+		②	工具【tooling（包管理器）】
+			处理目标系统上的这些包，以安装和维护应用程序。包管理器通常与仓库进行交互并维护包的本地缓存。
+	Ⅰ	RPM 包管理器
+		RPM Package Manager【https://en.wikipedia.org/wiki/RPM_Package_Manager 】最初由 Red Hat 创建，但现在广泛用于各种发行版。 .rpm 文件格式用于 Linux Standard Base，可以包含二进制文件或源文件。 
+		这些软件包可以进行加密验证，并支持通过补丁文件进行增量更新。使用 RPM 的包管理器如下：
+			yum			Amazon Linux，CentOS，Fedora 和 Red Hat	【http://yum.baseurl.org/ 】
+			DNF			CentOS，Fedora，和 RedHat 【https://docs.fedoraproject.org/en-US/quick-docs/dnf/ 】
+			Zypper		openSUSE 和 SUSE Linux Enterprise
+		示例【安装 Go】
+			①	找到 Go 的包
+				yum search golang
+			②	找到包的相关信息后，使用以下命令安装：
+				yum install golang
+			③	验证，准确检查安装的内容和位置：
+				yum info golang
+	Ⅱ	Debian deb
+	Ⅲ	特定语言的包管理器
+		还有特定于编程语言的包管理器，如下所示：
+		①	C/C++		有许多不同的包管理器，包括 Conan 和 vcpkg	【https://caiorss.github.io/C-Cpp-Notes/package-managers.html 】
+		②	Go			内置包管理器（go get，go mod）
+		③	Node.js		npm和其他
+		④	Java		maven和nuts，和其他
+		⑤	Python		pip和PyPM
+		⑥	Ruby		rubygems 和 Rails
+		⑦	Rust		cargo
+6、容器
 
 
+
+
+
+
+		
 
 
 
