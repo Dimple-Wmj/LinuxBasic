@@ -962,8 +962,342 @@ Applications, Package Management, and Containers
 		⑥	Ruby		rubygems 和 Rails
 		⑦	Rust		cargo
 6、容器
+	这里，可以将容器理解为一个Linux进程组，它使用Linux 命名空间、cgroup和可选的CoW文件系统来提供应用程序级依赖关系管理。容器的用例范围从本地测试和开发到使用分布式系统，如使用Kubernetes中的容器化微服务。
+	虽然容器对于开发人员和系统管理员非常有用，但作为最终用户，可能会更习惯使用更高级别的工具来管理应用程序。
+	针对系统管理员，引入容器包括以下内容：
+		①	Linux-VServer（2001）							【https://en.wikipedia.org/wiki/Linux-VServer 】
+		②	OpenVZ（2005）									【https://openvz.org/ 】
+		③	LXC（2008）										【https://linuxcontainers.org/ 】
+		④	Let Me Contain That for You（lmctfy）（2013）	【https://github.com/google/lmctfy 】
+
+	所有这些方法的共同点是使用Linux内核提供的基本构建块（如，命名空间或cgroup）来允许用户运行应用程序。
+	Docker 在这一概念上进行了创新，引入了两个突破性的元素：通过容器镜像定义打包的标准化方法和人性化的用户界面（例如 docker run）。 
+	容器镜像的定义和分发方式以及容器的执行方式构成了现在所谓的开放容器计划 (OCI) 【https://opencontainers.org/ 】核心规范的基础。 当在这里讨论容器时，关注的是符合 OCI 的实现。
+	OCI容器的三个核心规范如下：
+		①	Runtime specification											【https://github.com/opencontainers/runtime-spec 】
+			定义运行时需要支持的内容，包括操作和声明周期阶段。
+		②	Image format specification										【https://github.com/opencontainers/image-spec 】
+			定义如何基于元数据和层构建容器镜像
+		③	Distribution specification										【https://github.com/opencontainers/distribution-spec 】
+			定义容器镜像的传输方式，即存储库在容器上下文中的有效工作方式
+	与容器相关的另一个想法是不变性。这意味着一旦配置组合在一起，就无法在使用过程中更改它。换句话说，更改需要创建新的（静态）配置和新的资源（如进程）。
+	Ⅰ	Linux Namespaces
+		Linux最初对资源有全局视图。为了允许进程对资源（如文件系统、网络甚至用户）有本地视图，Linux引入了命名空间。
+		Linux命名空间都是关于资源可见性的，可用于隔离操作系统资源的不同方面。在这种情况下，隔离主要是关于进程所看到的内容，不一定是硬边界（从安全角度来看）。
+		要创建命名空间，可以使用三个相关的系统调用：
+			①	clone														【https://man7.org/linux/man-pages/man2/clone.2.html 】
+				用于创建可以与父进程共享其部分执行上下文的子进程。
+			②	unshare														【https://man7.org/linux/man-pages/man2/unshare.2.html 】
+				用于从现有进程中删除共享执行上下文。
+			③	setns														【https://man7.org/linux/man-pages/man2/setns.2.html 】
+				用于将现有进程加入现有命名空间。
+		这些系统调用采用一系列标志作为参数，使得能对要创建、加入或离开的命名空间进行细粒度控制：
+			①	CLONE_NEWNS
+				用于文件系统挂载点【https://man7.org/linux/man-pages/man7/mount_namespaces.7.html 】。通过 /proc/$PID/mounts 可见。自 Linux 2.4.19 开始支持。
+			②	CLONE_NEWUTS
+				用于创建 主机名和（NIS）域名【https://lwn.net/Articles/179345/ 】隔离。通过 uname -n 和 hostname -f 可见。自 Linux 2.6.19 开始支持。
+			③	CLONE_NEWPIC
+				用于执行 进程间通信（IPC)【https://lwn.net/Articles/187274/ 】资源隔离，如System V IPC对象或POSIX消息队列。通过 /proc/sys/fs/mqueue，/proc/sys/kernel，和/proc/sysvipc 可见。自Linux 2.6.19开始支持。
+			④	CLONE_NEWPID
+				用于 PID 编号空间隔离【https://lwn.net/Articles/259217/ 】（PID inside/outside the namespace）。可通过 /proc/$PID/status 收集关于它的详情。自Linux 2.6.24开始支持。
+			⑤	CLONE_NEWNET
+				用于控制网络系统资源【https://lwn.net/Articles/219794/ 】（如，网络设备，IP地址，IP路由表，和端口号）的可见性。可通过 ip netns list ，/proc/net，和/sys/class/net 查看。自Linux 2.6.29开始支持。
+			⑥	CLONE_NEWUSER
+				用于映射命名空间内部/外部的 UID+GIDs【https://lwn.net/Articles/528078/ 】。可通过 id 命令和 /proc/$PID/uid_map 和 /proc/$PID/gid_map 查询 UIDs 和 GIDs 和它们的映射。自Linux 3.8 开始支持。
+			⑦	CLONE_NEWCGROUP
+				用于管理 命名空间中的cgroups【https://man7.org/linux/man-pages/man7/cgroup_namespaces.7.html 】。可通过 /sys/fs/cgroup，/proc/cgroups 和 /proc/$PID/cgroup 查看。自Linux 4.6 开始支持。
+		查看系统上使用的命名空间的一种方法如下：
+			# lsns
+			        NS TYPE   NPROCS   PID USER COMMAND
+			4026531834 time      155     1 root /usr/lib/systemd/systemd --switched-root --system --deserialize 31
+			4026531835 cgroup    155     1 root /usr/lib/systemd/systemd --switched-root --system --deserialize 31
+			4026531836 pid       155     1 root /usr/lib/systemd/systemd --switched-root --system --deserialize 31
+			4026531837 user      155     1 root /usr/lib/systemd/systemd --switched-root --system --deserialize 31
+			4026531838 uts       153     1 root /usr/lib/systemd/systemd --switched-root --system --deserialize 31
+			4026531839 ipc       155     1 root /usr/lib/systemd/systemd --switched-root --system --deserialize 31
+			4026531840 net       155     1 root /usr/lib/systemd/systemd --switched-root --system --deserialize 31
+			4026531841 mnt       146     1 root /usr/lib/systemd/systemd --switched-root --system --deserialize 31
+			4026531862 mnt         1    29 root kdevtmpfs
+			4026532495 mnt         1   643 root /usr/lib/systemd/systemd-udevd
+			4026532496 uts         1   643 root /usr/lib/systemd/systemd-udevd
+			4026532609 mnt         1   734 root /sbin/auditd
+			4026532610 mnt         2   755 dbus /usr/bin/dbus-broker-launch --scope system --audit
+			4026532611 mnt         1   759 root /usr/sbin/irqbalance --foreground
+			4026532612 mnt         1   760 root /usr/lib/systemd/systemd-logind
+			4026532613 uts         1   760 root /usr/lib/systemd/systemd-logind
+			4026532614 mnt         1   819 root /usr/sbin/NetworkManager --no-daemon
+			4026532684 mnt         1   920 root /usr/sbin/rsyslogd -n
+	Ⅱ	Linux cgroups
+		命名空间与可见性有关，而cgroup【https://www.man7.org/linux/man-pages/man7/cgroups.7.html 】提供了一种不同的功能：它们是一种组织进程组的机制。除了分层组织之外，还可以使用cgroup来控制系统资源的使用。
+		此外，cgroup还提供资源使用情况跟踪（如，显示进程（组）使用了多少RAM或CPU秒数）。将cgroup视为声明性单元，将控制器视为一段内核代码，用于强制执行特定资源限制或报告其使用情况。
+		cgroup版本如下：
+		①	cgroup v1
+			对于 cgroup v1，社区采用了一种临时方法，根据需要添加新的 cgroup 和控制器。 存在以下 v1 cgroup 和控制器：
+			①	CFS bandwidth control
+				通过 cpu cgroup 使用。自Linux2.6.24开始支持
+			②	CPU accounting controller
+				通过 cpuacct cgroup 使用。自Linux2.6.24开始支持
+			③	cpusets cgroup
+				允许给任务【task】分配CPU和内存。自Linux2.6.24开始支持。
+			④	Memory resource controller
+				允许隔离任务的内存行为。自Linux2.6.25开始支持
+			⑤	Device whitelist controller
+				允许控制设备文件的使用。自Linux2.6.26开始支持
+			⑥	freezer cgroup
+				用于批处理作业【batch job】的管理。自Linux2.6.28开始支持
+			⑦	Network clssifer cgroup
+				用于为数据包分配不同的优先级。自Linux2.6.29开始支持
+			⑧	Block IO controller
+				允许节流【throttle】阻塞 I/O，自Linux2.6.33开始支持
+			⑨	perf_event command
+				允许收集性能数据。自Linux2.6.39开始支持
+			⑩	Network priority cgroup
+				允许动态设置网络流量的优先级，自Linux3.3开始支持
+			⑩ ①	HugeTLB controller
+				允许限制HugeTLB的使用。自Linux3.5开始支持
+			⑩ ②	Process number controller
+				允许cgroup层次结构在达到特定限制后创建新进程。从Linux4.3开始支持。
+		②	cgroup v2
+			cgroup v2 是根据 v1 的经验教训对 cgroup 进行了彻底重写。 无论是在一致的配置和 cgroup 的使用以及（集中且统一的）文档方面都是如此。 
+			与cgroup v1 每进程设计不同，cgroup v2 仅具有单一层次结构，并且所有控制器都以相同的方式进行管理。 以下是 v2 控制器：
+			①	CPU控制器
+				调节CPU周期的分布，支持不同的模型（weight，max）并包括使用情况报告。
+			②	内存控制器
+				使用一系列参数调节内存分配，支持用户空间内存、内核数据结构（如dentry和inode）以及TCP套接字缓冲区。
+			③	I/O控制器
+				通过基于权重和绝对带宽或每秒I/O操作数（IOPS）限制来调节I/O资源的分配，报告字节和IOPS读写。
+			④	Process number（PID）controller
+				与v1版本相同
+			⑤	cpuset controller
+				与v1版本相同
+			⑥	device controller
+				管理对设备文件的访问，在eBPF之上实现。
+			⑦	rdma controller
+				规范远程直接内存访问（RDMA）资源的分配和核算。
+			⑧	HugeTLB controller
+				与v1版本相同
+			v2中还有各种cgroup，允许对标量资源进行资源限制和跟踪机制（不能像其他cgroup资源一样进行抽象）。可以通过 systemctl 查看 Linux 系统中的所有v2 cgroup。如：
+				# systemctl status
+				● localhost.localdomain
+				    State: running
+				    Units: 282 loaded (incl. loaded aliases)
+				     Jobs: 0 queued
+				   Failed: 0 units
+				    Since: Fri 2023-12-22 18:55:15 CST; 4h 7min ago
+				  systemd: 252-17.el9
+				   CGroup: /
+				           ├─init.scope
+				           │ └─1 /usr/lib/systemd/systemd --switched-root --system --deserialize 31
+				           ├─system.slice
+				           │ ├─NetworkManager.service
+				           │ │ └─819 /usr/sbin/NetworkManager --no-daemon
+				           │ ├─auditd.service
+				           │ │ └─734 /sbin/auditd
+				           │ ├─crond.service
+				           │ │ └─859 /usr/sbin/crond -n
+						   ...
+						   └─user.slice
+				             ├─user-0.slice
+				             │ ├─session-3.scope
+				             │ │ ├─1519 "sshd: root [priv]"
+				             │ │ ├─1533 "sshd: root@pts/1"
+				             │ │ ├─1534 -bash
+				             │ │ ├─1681 systemctl status
+				             │ │ └─1682 less
+				             │ └─user@0.service
+				             │   └─init.scope
+				             │     ├─1524 /usr/lib/systemd/systemd --user
+				             │     └─1526 "(sd-pam)"
+			cgroup的另一个有用视图是交互式资源使用情况，如：
+				# systemd-cgtop
+			可以预期，随着现代内核版本的使用更加广泛，cgroups v2 将成为标准。 确实有某些发行版，例如 Arch、Fedora 31 和 Ubuntu 21.10，默认已经有 v2。
+	Ⅲ	写时复制【CoW】文件系统
+		容器的第三个构建块是CoW文件系统。这些在构建时使用。它们将应用程序及其所有依赖项打包到一个可以分发的独立文件中。
+		通常，CoW文件系统与绑定挂载【bind mounts https://docs.docker.com/storage/bind-mounts/ 】结合使用，以有效的方式将不同依赖项的内容分层。
+	Ⅳ	Docker
+		Docker 是 Docker Inc. 于 2014 年开发和推广的一种人性化容器实现。使用 Docker，可以轻松打包程序及其依赖项，并在从桌面到云的各种环境中启动它们。 
+		Docker 的独特之处不在于构建块（命名空间、cgroup、CoW 文件系统和绑定安装）。 这些在 Docker 出现之前就已存在一段时间了。 
+		其特别之处在于，Docker 将这些构建块组合在一起，通过隐藏管理命名空间和 cgroup 等低级位的复杂性，使它们易于使用。
+		Docker中有两个主要概念：镜像和运行容器。
+		①	容器镜像
+			压缩归档文件，其中包含JSON文件和层（实际上是目录）中的元数据。Docker守护进程根据需要从容器注册表中提取容器镜像。
+		②	作为运行时工件的容器（如，app A/B/C）
+			可以启动、停止、终止和删除它。可以使用客户端CLI工具（docker）与Docker守护进程交互。该CLI工具向守护进程发送命令，守护进程依次执行相应的操作，如构建或运行容器。
+		如下提供了常用Docker CLI命令的简短参考，涵盖构建时和运行时阶段。要获取完整参考（包括用例），参阅Docker文档【https://docs.docker.com/engine/reference/commandline/docker/ 】。
+			常用 Docker 命令：
+				命令		描述								示例
+				run			启动一个容器						以守护进程运行NGINX并在退出时删除容器：docker run -d --rm nginx:1.21
+				ps			列出容器							列出所有容器（包括非运行中）：docker ps -a
+				inspect		显示底层信息						查看容器IP：docker inspect -f '{{.NetworkSettings.IPAddress}}'
+				build		本地生成容器镜像					基于当前目录和标签构建镜像：docker build -t some:tag .
+				push		上传容器镜像到仓库					推送到AWS仓库：docker push public.ecr.aws/some:tag
+				pull		从仓库下载容器镜像					从AWS仓库拉取：docker pull public.ecr.aws/some:tag
+				images		列出本地容器镜像					列出某个确切registry中的镜像：docker images ubuntu
+				image		管理容器镜像						移除所有未使用的镜像：docker image prune -all
+		①	容器镜像
+			要定义有关如何构建容器镜像的说明，可以使用称为Dockerfile【https://docs.docker.com/engine/reference/builder/ 】的纯文本文件格式。Dockerfile中可以有不同的指令：
+			》基础镜像
+				FROM	从基础镜像创建一个新的构建阶段
+			》元数据
+				LABEL	给镜像添加元数据
+			》参数和环境变量
+				ARGS，ENV
+			》构建时规范
+				COPY，RUN 等，定义如何逐层构建镜像。
+			》运行时规范
+				CMD 和 ENTRYPOINT。定义容器如何运行
+			使用 docker build 命令，可以将代表应用程序的文件集合（作为源或二进制格式）与 Dockerfile 一起转换为容器镜像。该容器镜像是可以运行或推送到仓库的工件，以便将其分发给其他人以拉取并最终运行。
+		②	运行时容器
+			可以使用交互式输入（连接终端）或作为守护进程（后台）运行容器。docker run 采用容器镜像和一组运行时输入，如环境变量、要公开的端口和要挂载的卷。
+			利用此信息，Docker创建必要的命令空间和cgroup，并启动容器镜像（CMD或ENTRYPOINT）中定义的应用程序。
+	Ⅴ	其他容器工具
+		不必使用Docker来处理OCI容器；作为替代方案，可以使用 podman【https://podman.io/ 】和 buildah【https://buildah.io/ 】。这些无守护程序工具允许构建OCI容器镜像（buildah）并运行它们（podman）。
+		此外，还有许多工具可以使OCI容器、命名空间和cgroup的使用变得更加容易，包括但不限于以下工具：
+			》containerd
+				管理OCI容器生命周期的守护进程，从镜像传输和存储到容器运行时监督。
+			》skopeo
+				用于容器镜像操作（复制、检查清单等）
+			》systemd-cgtop
+				top 的一种cgroups 感知变体，以交互方式显示资源使用情况。
+			》nsenter
+				允许在指定的现有命名空间中执行程序
+			》unshare
+				允许运行具有特定命名空间的程序（通过 flags选择加入）
+			》lsns
+				列出有关Linux命名空间的信息
+			》cinf
+				列出与进程ID关联的Linux命名空间和cgroup的信息。
+7、现代包管理器
+	除了通常特定于发行版的更传统的包管理器之外，还有一种新的包管理器。 这些现代解决方案通常使用容器，旨在跨分发或针对特定环境。 例如，它们可以让 Linux 桌面用户轻松安装 GUI 应用程序。
+	Ⅰ	Snap
+		Canonical Ltd. 设计和推广的软件打包和部署系统。 它配备了完善的沙箱设置，可在桌面、云和物联网环境中使用。
+	Ⅱ	Flatpak
+		针对Linux桌面环境进行了优化，使用cgroup、命名空间、绑定挂载和seccomp作为其构建块。
+	Ⅲ	AppImage
+		已存在多年，提倡“一个应用程序等于一个文件”的理念； 也就是说，除了目标 Linux 系统中包含的内容之外，它不需要任何依赖项。 随着时间的推移，AppImage 中出现了许多有趣的功能，从高效更新到桌面集成再到软件目录。
+	Ⅳ	Homebrew
+		最初来自 macOS 世界，但可用于 Linux，并且越来越受欢迎。 它是用 Ruby 编写的，具有强大而直观的用户界面。
+扩展
+	启动进程和初始化系统
+		①	Analyzing the Linux boot process 【https://opensource.com/article/18/1/analyzing-linux-boot-process 】
+		②	Stages of Linux booting process 【https://www.crybit.com/linux-boot-process/ 】
+		③	How To Configure a Linux Service to Start Automatically After a Crash or Reboot【https://www.digitalocean.com/community/tutorial-series/how-to-configure-a-linux-service-to-start-automatically-after-a-crash-or-reboot 】
+	包管理
+		①	State of the Software Supply Chain 【https://www.sonatype.com/state-of-the-software-supply-chain/Introduction 】
+		②	Linux Package Management【https://www.linode.com/docs/guides/tools-reference/linux-package-management/ 】
+		③	Understanding RPM Package Management Tutorial【https://access.redhat.com/sites/default/files/attachments/rpm_tutorial_20120831.pdf 】
+		④	Debian packages【https://www.debian.org/distrib/packages 】
+	容器
+		①	A Practical Introduction to Container Terminology 【https://developers.redhat.com/blog/2018/02/22/container-terminology-practical-introduction# 】
+		②	OCI vs Docker: What is a container?【https://www.padok.fr/en/blog/container-docker-oci】
+		③	Building containers without Docker【https://blog.alexellis.io/building-containers-without-docker/ 】
+		④	Why Red Hat is investing in CRI-O and Podman【https://www.redhat.com/en/blog/why-red-hat-investing-cri-o-and-podman 】
+		⑤	揭秘容器【https://github.com/saschagrunert/demystifying-containers 】
+		⑥	Rootless Containers【https://rootlesscontaine.rs/ 】
+		⑦	The hunt for a better Dockerfile 【https://matduggan.com/the-hunt-for-a-better-dockerfile/ 】
+	
+
+Networking
+1、基础
+	在现代环境中，网络起着核心作用。鉴于网络有许多移动部件和层，可能很难确定问题是与硬件相关还是源于软件堆栈。Linux网络的另一个挑战来自抽象。
+	Linux网络概述：
+		用户空间								内核空间							硬件
+		浏览器 ip SSH 					    	 Sockets							NIC Wireless
+		dig ping arp mail						TCP/UDP
+												IP ICMP
+												Drivers
+2、TCP/IP 堆栈
+	TCP/IP堆栈，是由许多协议和工具组成的分层网络模型，大部分由IETF规范定义。每一层都必须知道并且只能与自身上方和下方的层进行通信。数据封装在数据包中。
+	因此，如果应用程序想要发送数据，它将直接与最高层交互，最高层将添加标头等，并在堆栈中添加。 相反，如果应用程序想要接收数据，它将到达最低层，每个层依次根据它找到的标头信息对其进行处理，并将有效负载传递到上面的层。
+	从堆栈底部开始，TCP/IP堆栈的四层如下：
+		①	链路层
+			该层位于堆栈的最底层，涵盖硬件（以太网、WiFi）和内核驱动程序，并重点关注数据包如何在物理设备之间发送。
+		②	网络层
+			对于互联网协议（IP），这一层主要关注路由；也就是说，它支持跨网络的机器之间发送数据包。
+		③	传输层
+			该层控制（虚拟或物理）主机之间的端到端通信，使用传输控制协议（TCP）进行基于会话的可靠通信，使用用户数据报协议（UDP）进行无连接通信。
+			它主要处理数据包的传输方式，包括通过端口寻址机器上的各个服务以及数据完整性。此外，Linux支持套接字作为通信端点。
+		④	应用层
+			该层处理面向用户的工具和应用程序，如Web、SSH和邮件。
+	分层意味着一层的报头和有效负载组成了下一层的有效负载。
+	Ⅰ	链路层
+		在TCP/IP堆栈的链路层中，所有内容都与硬件或接近硬件的内容有关，如字节、线路、电磁波、设备驱动程序和网络接口。这里，会遇到以下术语：
+			以太网			一系列使用电线连接机器的网络技术；常用于局域网（LAN）。
+			无线网			也称WiFi，一类通信协议和方法，它不使用电线，而是使用一些电磁波来传输数据。
+			MAC地址			MAC是媒体访问控制的缩写，是硬件的唯一48位标识符，用于识别机器（准确来说是网络接口）。MAC地址通过组织唯一标识符（OUI）对（接口的）制造商进行编码，通常占据前24位。
+			接口			网络接口。可以是物理接口或虚拟（软件）接口【如环回接口 lo）。
+		》网络接口控制器【Network interface controller】
+		网络接口控制器（NIC）是一项重要的硬件设备，有时称为网络接口卡【网卡】。NIC通过有线标准提供与网络的物理连接。
+		一旦成为网络的一部分，网卡会将您想要发送的字节的数字表示形式转换为电或电磁信号。 接收路径的情况则相反，网卡将其接收到的任何物理信号转换为软件可以处理的位和字节。
+		传统上，可以使用 ifconfig 命令查询系统上可用的NIC的信息。如：
+			# ifconfig
+			ens33: flags=4163<UP,BROADCAST,RUNNING,MULTICAST>  mtu 1500
+			        inet 192.168.3.10  netmask 255.255.255.255  broadcast 0.0.0.0
+			        inet6 fe80::20c:29ff:fe98:3c14  prefixlen 64  scopeid 0x20<link>
+			        ether 00:0c:29:98:3c:14  txqueuelen 1000  (Ethernet)
+			        RX packets 39108  bytes 25078557 (23.9 MiB)
+			        RX errors 0  dropped 0  overruns 0  frame 0
+			        TX packets 14534  bytes 2164695 (2.0 MiB)
+			        TX errors 0  dropped 0 overruns 0  carrier 0  collisions 0
+			
+			ens36: flags=4163<UP,BROADCAST,RUNNING,MULTICAST>  mtu 1500
+			        inet 192.168.229.128  netmask 255.255.255.0  broadcast 192.168.229.255
+			        inet6 fe80::167c:9d1b:7073:761c  prefixlen 64  scopeid 0x20<link>
+			        ether 00:0c:29:98:3c:1e  txqueuelen 1000  (Ethernet)
+			        RX packets 1809  bytes 340212 (332.2 KiB)
+			        RX errors 0  dropped 0  overruns 0  frame 0
+			        TX packets 28  bytes 1866 (1.8 KiB)
+			        TX errors 0  dropped 0 overruns 0  carrier 0  collisions 0
+			
+			lo: flags=73<UP,LOOPBACK,RUNNING>  mtu 65536
+			        inet 127.0.0.1  netmask 255.0.0.0
+			        inet6 ::1  prefixlen 128  scopeid 0x10<host>
+			        loop  txqueuelen 1000  (Local Loopback)
+			        RX packets 96  bytes 8160 (7.9 KiB)
+			        RX errors 0  dropped 0  overruns 0  frame 0
+			        TX packets 96  bytes 8160 (7.9 KiB)
+			        TX errors 0  dropped 0 overruns 0  carrier 0  collisions 0
+		对于执行相同操作（查询接口并检查其状态）的更现代方法，请使用 ip 命令。如：
+			# ip link show
+			1: lo: <LOOPBACK,UP,LOWER_UP> mtu 65536 qdisc noqueue state UNKNOWN mode DEFAULT group default qlen 1000
+			    link/loopback 00:00:00:00:00:00 brd 00:00:00:00:00:00
+			2: ens33: <BROADCAST,MULTICAST,UP,LOWER_UP> mtu 1500 qdisc fq_codel state UP mode DEFAULT group default qlen 1000
+			    link/ether 00:0c:29:98:3c:14 brd ff:ff:ff:ff:ff:ff
+			    altname enp2s1
+			3: ens36: <BROADCAST,MULTICAST,UP,LOWER_UP> mtu 1500 qdisc fq_codel state UP mode DEFAULT group default qlen 1000
+			    link/ether 00:0c:29:98:3c:1e brd ff:ff:ff:ff:ff:ff
+			    altname enp2s4
+		对于 ifconfig 和 ip link，可能对 LOWER_IP 或 MULTICAST 等标志的含义感兴趣； 这些记录在 netdevice 手册页【https://www.man7.org/linux/man-pages/man7/netdevice.7.html 】中。
+		》地址解析协议【Address Resolution Protocol】
+		地址解析协议（ARP）将MAC地址映射到IP地址。从某种意义上说，它桥接了链路层与其之上的层（网络层）。如：
+			# arp
+			Address                  HWtype  HWaddress           Flags Mask            Iface
+			192.168.3.4              ether   0c:54:15:88:17:5b   C                     ens33
+			_gateway                 ether   14:51:20:94:4f:87   C                     ens33
+		使用 arp 命令显示MAC地址映射到主机名或IP地址的缓存。注意，可以使用 arp -n 来阻止主机名解析并显示IP地址而不是DNS名称。
+		或，使用更现代的 ip 命令，如：
+			# ip neigh
+			192.168.3.4 dev ens33 lladdr 0c:54:15:88:17:5b STALE 
+			192.168.3.1 dev ens33 lladdr 14:51:20:94:4f:87 REACHABLE 
+		要显示、配置无线设备并对其进行故障排除，需要使用 iw 命令。如：
+			# iw dev wlp1s0 info
+		收集与路由器和流量相关的信息，如：
+			# iw dev wlp1s0 link
+	Ⅱ	网络层
+		TCP/IP堆栈的第二层，即网络层，负责将数据包从网络上的一台机器路由到另一台机器。网络层的设计假设可用的网络基础设施不可靠，并且参与者（如网络中的节点或它们之间的连接）频繁变化。
+		网络层提供尽力传送（即不保证性能）并将每个数据包视为独立的。更高层（通常是传输层）负责解决可靠性问题，包括数据包顺序、重试或交互保证。
+		在这一层中，用于在全球范围内唯一地逻辑识别机器的主导协议是互联网协议 (IP)，它有两种类型：IP 版本 4 (IPv4) 和 IP 版本 6 (IPv6)。
+		》IPv4
+			
 
 
+	
+
+			
+
+
+					
+					
 
 
 
