@@ -1287,8 +1287,722 @@ Networking
 		TCP/IP堆栈的第二层，即网络层，负责将数据包从网络上的一台机器路由到另一台机器。网络层的设计假设可用的网络基础设施不可靠，并且参与者（如网络中的节点或它们之间的连接）频繁变化。
 		网络层提供尽力传送（即不保证性能）并将每个数据包视为独立的。更高层（通常是传输层）负责解决可靠性问题，包括数据包顺序、重试或交互保证。
 		在这一层中，用于在全球范围内唯一地逻辑识别机器的主导协议是互联网协议 (IP)，它有两种类型：IP 版本 4 (IPv4) 和 IP 版本 6 (IPv6)。
-		》IPv4
+		①	IPv4
+			IPv4定义了唯一的32位数字，用于标识在TCP/IP通信中充当端点的主机或进程。编写 IPv4 地址的一种方法是将 32 位分成四个用句点分隔的 8 位段【点分十进制】，每个段在 0 到 255 范围内，称为一个八位组（暗示该段涵盖 8 位）。	
+			按照RFC791和相关IETF规范中的定义，IP标头具有许多字段，但以下是应该注意的最重要的字段：
+				》源地址（32比特）					发送端的IP地址
+				》目标地址（32比特）				接收端的IP地址
+				》协议（8比特）						有效负载类型（下一个更高层类型），如TCP、UDP或ICMP
+				》生存时间，又名TTL（8比特）		允许数据包存在的最长时间
+				》服务类型（8比特）					可用于服务质量（QoS)目的
+			鉴于互联网是一个网络的网络，区分网络和网络中的单台机器（主机）似乎很自然。 IP 地址范围被分配给网络，并在这些网络内分配给各个主机。
+			如今，无类别域间路由（CIDR）【https://en.wikipedia.org/wiki/Classless_Inter-Domain_Routing 】是分配IP地址的唯一相关方法。CIDR格式由两部分组成：
+				》第一部分表示网络地址。这看起来像一个普通的IP地址【如，10.0.0.0】
+				》第二部分定义了地址范围内有多少位（以及IP地址）【如，/24】
+			一个完整的CIDR范围示例如：10.0.0.0/24。这里前 24 位（或三个八位字节）代表网络，最后 8 位（总共 32 位减去网络的 24 位）是 256 个主机可用的 IP 地址 (28 )。 
+			此 CIDR 范围中的第一个 IP 地址是 10.0.0.0，最后一个 IP 地址是 10.0.0.255。 严格来说，只有 10.0.0.1 到 10.0.0.254 地址可以分配给主机，因为 .0 和 .255 地址是为特殊用途而保留的。 
+			此外，可以说网络掩码是 255.255.255.0，因为它是代表网络的前 24 位。
+			如果想要进行 CIDR 范围计算，例如确定一个范围内有多少个 IP，可以使用以下方法：
+				》在线工具：https://cidr.xyz/ 和 https://www.ipaddressguide.com/cidr
+				》命令行工具：mapcidr【https://github.com/projectdiscovery/mapcidr 】 和cidrchk【https://github.com/mhausenblas/cidrchk 】
+			一些值得注意的保留IPv4地址：
+				》127.0.0.0			该子网是为本地地址保留的，其中最突出的一个是环回地址 127.0.0.1。
+				》169.254.0.0/16	这些是链路本地地址，这意味着发送到那里的数据包不应转发到网络的其他部分。一些云供应商（如Amazon Web Services）将其用于特殊服务（元数据）。
+				》224.0.0.0/24		这些是为多播【multicast】保留的
+			RFC 1918 定义私有IP范围。私有IP范围意味着其中的IP地址在公共互联网上不可路由；因此，在内部分配它们是安全的：
+				》10.0.0.0/8		10.0.0.0 ~ 10.255.255.255
+				》172.16.0.0/12		172.16.0.0 ~ 172.31.255.255
+				》192.168.0.0/16	192.168.0.0 ~ 192.168.255.255
+			另一个有趣的 IPv4 地址是 0.0.0.0。 它是一个不可路由的地址，根据上下文具有不同的用例和不同的含义，但从服务器的角度来看，最重要的是 0.0.0.0 指的是机器中存在的所有 IPv4 地址。 
+			这是一个很好的方式来表示“监听所有可用的 IP 地址”作为源，直到它变成已知的 IP。
+			查询机器中与IP相关的人内容，如：
+				# ip addr show
+				1: lo: <LOOPBACK,UP,LOWER_UP> mtu 65536 qdisc noqueue state UNKNOWN group default qlen 1000
+				    link/loopback 00:00:00:00:00:00 brd 00:00:00:00:00:00
+				    inet 127.0.0.1/8 scope host lo
+				       valid_lft forever preferred_lft forever
+				    inet6 ::1/128 scope host 
+				       valid_lft forever preferred_lft forever
+				2: ens33: <BROADCAST,MULTICAST,UP,LOWER_UP> mtu 1500 qdisc fq_codel state UP group default qlen 1000
+				    link/ether 00:0c:29:98:3c:14 brd ff:ff:ff:ff:ff:ff
+				    altname enp2s1
+				    inet 192.168.3.10/32 scope global noprefixroute ens33
+				       valid_lft forever preferred_lft forever
+				    inet6 fe80::20c:29ff:fe98:3c14/64 scope link noprefixroute 
+				       valid_lft forever preferred_lft forever
+			IPv4地址已经耗尽。IPv6可以解决地址耗尽问题。IPv4地址耗尽解决方法【https://networkengineering.stackexchange.com/questions/53935/why-are-ipv4-addresses-running-out 】
+		②	IPv6
+			互联网协议版本6（IPv6）是一个128位数字，用于标识TCP/IP通信中的端点。这意味着通过IPv6，可以分配大约10^38台单独的机器（设备）。与IPv4不同，IPv6使用十六进制表示【八组、每组16位，用冒号分隔】。
+			缩短 IPv6 地址有一些规则，例如删除前导零或通过用两个冒号 (::) 替换连续的零部分来压缩它们。 例如，IPv6 环回地址可以缩写为 ::1（IPv4 变体为 127.0.0.1）。
+			与IPv4一样，IPv6也有许多特殊和保留的地址；见APNIC的IPv6地址类型列表【https://www.apnic.net/get-ip/faqs/what-is-an-ip-address/ipv6-address-types/ 】。
+			需要注意的是，IPv4 和 IPv6 不兼容。 这意味着从边缘设备（如手机）到路由器再到服务器软件，每个网络参与者都需要内置 IPv6 支持。
+		③	互联网控制信息协议【ICMP】
+			RFC 792 定义了Internet Control Message Protocol（ICMP），用于较低级别的组件发送错误消息和可用性等操作信息。
+			可以通过使用 ping 测试网站的可达性了解ICMP的实际情况，如：
+				# ping 163.com
+				64 比特，来自 163.com (123.58.180.8): icmp_seq=1 ttl=54 时间=29.9 毫秒
+				64 比特，来自 163.com (123.58.180.8): icmp_seq=2 ttl=54 时间=29.2 毫秒
+				64 比特，来自 163.com (123.58.180.8): icmp_seq=3 ttl=54 时间=29.6 毫秒
+				64 比特，来自 163.com (123.58.180.8): icmp_seq=4 ttl=54 时间=29.8 毫秒
+				64 比特，来自 163.com (123.58.180.8): icmp_seq=5 ttl=54 时间=29.3 毫秒
+			或者，可以使用gping 同时 ping 多个目标并咋爱命令行上绘制图表。
+			注意，有一个适用于 IPv6 的等效工具：恰当地命名为 ping6。
+		④	路由【routing】
+			Linux中网络堆栈的一部分与路由有关，即根据每个数据包决定将数据包发送到何处。目标可以是同一台计算机桑的进程，也可以是不同计算机上的IP地址。
+			iptables 是一个广泛使用的工具，允许操作路由表——如，在某些条件下重新路由数据包或实施防火墙——使用 netfilter 拦截和操作数据包。
+			使用 route 可以查询和显示路由信息，如：
+				# route -n
+				Kernel IP routing table
+				Destination     Gateway         Genmask         Flags Metric Ref    Use Iface
+				0.0.0.0         192.168.3.1     0.0.0.0         UG    100    0        0 ens33
+				0.0.0.0         192.168.229.1   0.0.0.0         UG    101    0        0 ens36
+				192.168.3.1     0.0.0.0         255.255.255.255 UH    100    0        0 ens33
+				192.168.229.0   0.0.0.0         255.255.255.0   U     101    0        0 ens36
+				》字段说明：
+					Destination		目标IP地址；0.0.0.0 表示未指定或未知，可能会将其发送到网关。
+					Gateway			网关地址，用于不在同一网络上的数据包
+					Genmask			使用的子网掩码
+					Flags			UG意味着网络是开着的，且是网关
+					Iface			数据包将使用的网络接口
+			更现代的方法是使用ip命令，如：
+				# ip route
+				default via 192.168.3.1 dev ens33 proto static metric 100 
+				default via 192.168.229.1 dev ens36 proto static metric 101 
+				192.168.3.1 dev ens33 proto static scope link metric 100 
+				192.168.229.0/24 dev ens36 proto kernel scope link src 192.168.229.128 metric 101 
+			可以按如下方式检查连接性，如：
+				# traceroute 163.com
+	Ⅲ	传输层
+		在这一层中，一切都与端点之间通信的性质有关。有面向连接的协议和无连接的协议。可靠性、服务质量和有序交付可能是一个问题。
+		现代协议设计（如HTTP/3）尝试着结合功能，如将TCP的部分内容移至更高级别的协议中。
+		①	端口
+			这一层的一个核心概念是端口。无论该层使用哪种协议，每种协议都需要端口。端口是一个唯一的16位数字，用于标识IP地址上可用的服务。端口区分如下：
+				》知名端口（0 ~ 1023）
+					这些用于守护进程，如SSH服务器或Web服务器。使用（绑定）其中之一需要提升权限。
+				》注册端口（1024 ~ 49151）
+					这些端口由互联网号码分配机构（IANA）通过公开记录的流程进行管理。
+				》临时端口（49152 ~ 65535）
+					无法注册。它们可用于自动分配临时端口（如应用程序连接到Web服务器，则它本身需要一个端口，作为通信的另一个端点）以及专用端口（如公司内部端口）服务。
+					可以在 /etc/services 中查看端口和映射，此外，如果不确定，可能需要查阅 TCP 和 UDP 端口号的完整列表【https://en.wikipedia.org/wiki/List_of_TCP_and_UDP_port_numbers 】。
+			如果想查看本地计算机上正在使用的内容，可使用如下命令：
+				# nmap -A localhost
+				Starting Nmap 7.92 ( https://nmap.org ) at 2023-12-24 06:03 CST
+				Nmap scan report for localhost (127.0.0.1)
+				Host is up (0.00014s latency).
+				Other addresses for localhost (not scanned): ::1
+				Not shown: 999 closed tcp ports (reset)
+				PORT   STATE SERVICE VERSION
+				22/tcp open  ssh     OpenSSH 8.7 (protocol 2.0)
+				| ssh-hostkey: 
+				|   256 99:75:34:76:84:b5:f3:10:cb:29:dc:18:89:90:46:48 (ECDSA)
+				|_  256 10:ec:4f:69:40:48:da:2c:2b:50:ee:f9:26:aa:14:40 (ED25519)
+				No exact OS matches for host (If you know what OS is running on it, see https://nmap.org/submit/ ).
+				TCP/IP fingerprint:
+				OS:SCAN(V=7.92%E=4%D=12/24%OT=22%CT=1%CU=40046%PV=N%DS=0%DC=L%G=Y%TM=
+				...
+		②	传输控制协议【TCP】
+			传输控制协议（TCP）是一种面向连接的传输层协议，许多更高级别的协议都使用该协议，包括HTTP和SSH。它是一种基于会话的协议，可保证数据包按顺序传送并支持在发生错误时重传。
+			按照RFC793和相关IETF规范中的定义，TCP标头具有以下最重要的字段：
+				》Source Port（16比特）
+					发送端使用的端口
+				》Destination Port（16比特）
+					接收端使用的端口
+				》Sequence number（32比特）
+					用于管理按顺序发送
+				》Acknowledgement number（32比特）
+					该数字以及SYN和ACK标志是所谓的TCP/IP三次握手【https://en.wikipedia.org/wiki/Transmission_Control_Protocol#Connection_establishment 】的核心
+				》Flags（9比特）
+					最重要，包含 SYN（同步）和ACK（确认）比特。
+				》Window（16比特）
+					接收窗口大小
+				》Checksum（16比特）
+					TCP头的校验和，用于差错检查
+				》Data
+					传输的有效负载
+			TCP跟踪连接从建立到终止的状态，发送方和接收方都必须协商某些事项，从发送多少数据（TCP窗口大小）到QoS。
+			从安全角度来看，TCP没有任何防御机制。换句话说，有效负载以纯文本形式发送，发送方和接收方之间的任何人（并且设计由很多跳【hops】）都可以检查数据包；可通过 Wireshark 和 tshark 检查有效负载的详细信息。
+			要启用消息加密，需要使用传输层安全（TLS）协议。
+		③	用户数据报协议【UDP】
+			用户数据报协议【UDP】是一种无连接传输层协议，允许发送消息（在UDP中称为数据报），而无需进行通信设置（如TCP通过三次握手建立连接）。但它确实支持数据报校验和以确保完整性。
+			有许多使用UDP的应用程序级协议，如NTP和DHCP以及DNS。
+			RFC768定义了UDP报头格式。它最重要的字段如下：
+				》Source port（16比特）
+					发送端使用的端口；可选，如果没有，使用0
+				》Destination port（16比特）
+					接收端使用的端口
+				》Length（16比特）
+					UDP头部和数据的总长度
+				》Checksum（16比特）
+					可选地用于差错检查
+				》Data
+					数据报的有效负载
+			UDP 是一个非常简单的协议，需要在其之上工作的更高级别协议来处理TCP自行处理的许多事情。另一方面，UDP的开销非常小，并且可以实现高吞吐量。使用起来非常简单；见 UDP 手册页【https://linux.die.net/man/7/udp 】
+		④	套接字【Sockets】
+			Linux 提供的高级通信接口是套接字【https://www.man7.org/linux/man-pages/man7/socket.7.html 】。将它们视为通信中的端点，具有独特的标识：由TCP或UDP端口和IP地址组成的元组。
+			如果想开发与网络相关的工具或应用程序，可能只会使用套接字，但至少应该知道如何查询它们。 例如，在 Docker 守护进程的上下文中，至少需要了解套接字所需的权限。
+			可以shiyong ss【https://www.man7.org/linux/man-pages/man8/ss.8.html 】 命令来显示socket相关信息。如：
+				# ss -s
+				Total: 128
+				TCP:   4 (estab 2, closed 0, orphaned 0, timewait 0)
+				
+				Transport Total     IP        IPv6
+				RAW       2         0         2        
+				UDP       0         0         0        
+				TCP       4         3         1        
+				INET      6         3         3        
+				FRAG      0         0         0  
+			查看UDP套接字【使用 -u 选项】。如：
+				# ss -ulp
+				State                  Recv-Q                  Send-Q                               Local Address:Port                                Peer Address:Port                 Process                                     
+				UNCONN                 0                       0                                        0.0.0.0:domain                                     0.0.0.0:*                     users:(("dnsmasq",pid=1575,fd=6))                 			UNCONN                 0                       0                                        0.0.0.0:bootps                                     0.0.0.0:*                     users:(("dnsmasq",pid=1575,fd=4))                 			UNCONN                 0                       0                                           [::]:domain                                        [::]:*                     users:(("dnsmasq",pid=1575,fd=8)) 
+			》说明：
+				-u	限制仅UDP套接字
+				-l	选择正在监听的套接字
+				-p	显示进程信息
+			如果要查看套接字和进程，还可以使用另一个工具【lsof】。如：
+				# lsof -c dnsmasq -i udp | head -5
+				COMMAND  PID    USER   FD      TYPE DEVICE SIZE/OFF     NODE NAME
+				dnsmasq 1590 dnsmasq  cwd       DIR  253,0      250      128 /
+				dnsmasq 1590 dnsmasq  rtd       DIR  253,0      250      128 /
+				dnsmasq 1590 dnsmasq  txt       REG  253,0   434528 34295227 /usr/sbin/dnsmasq
+				dnsmasq 1590 dnsmasq  mem       REG  253,0    53416 34313250 /usr/lib64/libnss_sss.so.2
+			》说明：
+				-c	按名称选择特定进程
+				-i	限制协议类型【如，udp】
+3、DNS
+	无论是IPv4，还是IPv6，都面临两个挑战：名称比数字更好记、IP地址经常发生变化。因此，简而言之，IP 地址很难记住并且可以更改，而名称（服务器或服务的名称）保持不变。
+	解决这个问题的方法是通过 /etc/hosts 在本地（在单台机器的上下文中）维护名称和 IP 地址之间的映射。 网络信息中心 (NIC) 将通过 FTP 与所有参与的主机共享一个名为 HOSTS.TXT 的文件。
+	很快人们就发现这种集中式方法无法跟上互联网的发展，于是在 20 世纪 80 年代初，设计了分布式系统。DNS 是互联网上主机和服务的全球性分层命名系统。 虽然有许多相关的 RFC，但最初的 RFC 1034 及其通过 RFC 1035 的实现指南仍然有效。
+	DNS使用许多术语，但主要概念如下：
+		》Domain name space【域名空间】
+			树形结构，使用【.】作为根，每个树节点和叶子包含有关某个空间的信息。从叶子到根的路径上的标签（最大长度为63字节）就是完全限定域名（FQDN）。如，demo.mhausenblas.info，是具有顶级域【.info】的FQDN。
+			注意，最右边的【.】（根）通常被省略。
+		》Resource records【资源记录】
+			域名空间的节点或叶子中的负载。
+		》Name servers【名称服务器】
+			保存有关域树形结构的信息的服务器程序。如果名称服务器拥有有关空间的完整信息，则称为权威名称服务器。权威信息按区域组织。
+		》Resolvers【解析器】
+			从名称服务器中提取信息以响应客户端请求的程序。它们是机器本地，并且没有为解析器和客户端之间的交互定义明确的协议。通常有支持解析DNS的库调用。
+								Local host					     |	Foreign
+					 ——	queries ——→					—— Queries ————>					
+				User				Resolver			         |	Foreign name server
+					 ←——responses——	  ⬆  |          ←——Responses—|——
+								  缓存|	 |引用                   |
+									  |	 ⬇						 |
+								 Shared database                 |
+									  ⬆	 |						 |
+								  引用|	 |引用					 |
+									  |  ⬇			—— Responses———→
+                 Master files ——→  Name server					 |  Foreign resolver
+								   	  ↑  |			←—— Queries —|——
+								      |  |                       |
+									  |	 |						 |
+                                      |  |___Maintenance queries-|—→			
+									  |							 |  Foreign name server    
+									  |_____Maintenance response-|——
+	这是DNS系统的完整设置，包括用户程序、解析器和名称服务器【如，RFC1035所述】。在查询过程中，解析器从以下位置开始迭代查询权威名称服务器（NS）：根，或如果支持的化，使用递归查询，其中NS代表解析器查询其它查询。
+	》补充：
+		尽管它们仍然存在，但通常不会在现代系统中使用 /etc/resolv.conf 中的DNS解析器配置，尤其是在部署DHCP时。
+	DNS是一个分层命名系统，其根部有13个根服务器，用于管理顶级域的记录。根目录正下方是顶级域（TLD）：
+		①	Infrastructure top-level domain【基础设施顶级域名】
+			由IANA代表IETF管理，包括 example 和 localhost。
+		②	Generic top-level domains（gTLD）【通用顶级域名】
+			通用顶级域名由三个或以上字符，如 .org 或 .com
+		③	Country-code top-level domains（ccTLD）【国家代码顶级域名】
+			用于分配了两个字母ISO 国家/地区代码【https://en.wikipedia.org/wiki/ISO_3166-1_alpha-2 】的国家或地区
+		④	Sponsored top-level domains（sTLD）【赞助顶级域名】
+			用于指定和执行限制使用TLD资格的规则的私人机构或组织，如 .aero 和 .gov
+	Ⅰ	DNS 记录
+		名称服务器管理捕获类型、有效负载和其他字段的记录，包括生存时间（TTL）、记录应被丢弃的时间段等。可以将FQDN视为节点的地址，将资源记录（RR）视为有效负载，即节点中的数据。
+		DNS具有多种记录类型【https://en.wikipedia.org/wiki/List_of_DNS_record_types 】，重要的记录类型如下：
+			》A 记录（RFC 1035）和 AAAA 记录（RFC 3596）
+				IPv4 和 IPv6 地址记录；通常用于将主机名映射到主机的IP地址。
+			》CNAME 记录（RFC 1035）
+				名称服务器记录委托DNS区域使用权威名称服务器
+			》PTR 记录（RFC 1035）
+				用于执行反向DNS查找的指针记录；与A记录相反
+			》SRV 记录（RFC 2782）
+				服务定位器记录。它们是一种通用的发现机制，而不是硬编码的（如传统上用于邮件交换的 MX 记录类型的情况）。
+			》TXT 记录（RFC 1035）
+				文字记录。这些最初适用于任意人类可读的文本，现在这些记录通常在与安全相关的DNS扩展的上下文中包含机器可读的数据。
+			还有以星号（*）开头的通配符记录【如，*.mhausenblas.info】。
+		DNS记录以文本形式表示在区域文件【https://en.wikipedia.org/wiki/Zone_file 】中，名称服务器读入该区域文件并使其成为其数据库的一部分。示例如下：
+			$ORIGIN example.com.															# 该区域文件在命名空间中的开头
+			$TTL 3600																		# 所有未定义自己的TTL的RR的默认过期时间（单位：秒）
+			@			SOA nse.example.com. nsmaster.example.com. (
+								1234567890 ; serial number
+								21600      ; refresh after 6 hours
+								3600       ; retry after 1 hour
+								604800     ; expire after 1 week
+								3600 )     ; minimum TTL of 1 hour
+			example.com.   IN NS nse													    # 该域名的名称服务器		
+			example.com.   IN MX 10 mail.example.com.										# 该域名的邮件服务器
+			example.com.   IN A     1.2.3.4													# 该域名的IPv地址
+			nse            IN A     5.6.7.8													# 名称服务器的IPv4地址
+			www            IN CNAME example.com.											# 使 www.example.com 成为该域【example.com】的别名
+			mail           IN A     9.0.0.9													# 邮件服务器的IPv4地址
+	Ⅱ	DNS 查询
+		可以使用 host 命令查询 本地（和全局）名称，将其解析为IP地址，反之依然，如：
+			# host -a localhost				# 查询本地IP地址
+			# host miggi.info				# 查询 FQDN
+			# host 185.199.110.153			# 通过IP地址反向查询 FQDN
+		查询DNS记录的更强大方法是使用 dig 命令，如：
+			# dig 163.com
 			
+			; <<>> DiG 9.16.23-RH <<>> 163.com
+			;; global options: +cmd
+			;; Got answer:
+			;; ->>HEADER<<- opcode: QUERY, status: NOERROR, id: 40578
+			;; flags: qr rd ra; QUERY: 1, ANSWER: 2, AUTHORITY: 7, ADDITIONAL: 8
+			
+			;; QUESTION SECTION:
+			;163.com.                       IN      A
+			
+			;; ANSWER SECTION:																# DNS A 记录
+			163.com.                600     IN      A       123.58.180.8
+			163.com.                600     IN      A       123.58.180.7
+			
+			;; AUTHORITY SECTION:															# 权威的域名服务器
+			163.com.                402     IN      NS      ns5.nease.net.
+			163.com.                402     IN      NS      ns2.166.com.
+			163.com.                402     IN      NS      ns3.nease.net.
+			163.com.                402     IN      NS      ns8.166.com.
+			163.com.                402     IN      NS      ns1.nease.net.
+			163.com.                402     IN      NS      ns6.nease.net.
+			163.com.                402     IN      NS      ns4.nease.net.
+			
+			;; ADDITIONAL SECTION:
+			ns1.nease.net.          479     IN      A       42.186.35.222
+			ns5.nease.net.          232     IN      A       103.71.201.3
+			ns2.166.com.            354     IN      A       103.71.201.3
+			ns3.nease.net.          222     IN      A       103.72.12.150
+			ns8.166.com.            539     IN      A       18.182.82.158
+			ns8.166.com.            539     IN      A       44.228.163.69
+			ns4.nease.net.          117     IN      A       103.72.12.151
+			ns6.nease.net.          52      IN      A       54.228.156.72
+			
+			;; Query time: 6 msec
+			;; SERVER: 192.168.3.1#53(192.168.3.1)
+			;; WHEN: Sun Dec 24 20:46:43 CST 2023
+			;; MSG SIZE  rcvd: 324
+		除了 dig 命令之外，还有其他可用命令，特别是 dog 和 nslookup。
+		》补充：
+			DNS是一个具有许多移动部件的分布式数据库。在调试与DNS相关的问题时，考虑记录的TTL，以及存在许多缓存，从应用程序和解析器的本地缓存，再到和名称服务器之间的任何缓存。
+		SRV记录类型，并且它充当通用发现机制。因此，社区没有在RFC中为新服务定义新记录类型，而是提出了一种通用方法来解决任何即将退出的服务类型。RFC 2782中的描述的此机制解释了如何使用SRV记录通过DNS传达服务的IP地址和端口。
+		查看有哪些聊天服务（具体来说，XMPP）可用：
+			# dig +short _xmpp-client._tcp.gmail.com. SRV
+		使用带有短选项的 dig 命令可仅显示相关答案的部分。_xmpp-client._tcp 部分是 RFC 2782 规定的格式，该命令末尾的 SRV 指定感兴趣的记录类型。
+4、应用层网络
+	Ⅰ	Web
+		web 具有三个核心组件：
+			》Uniform Resource Locator是（URL）【统一资源定位器】
+				最初按照 RFC 1738 以及一些更新和相关 RFC。 URL 定义了网络上资源的身份和位置。 资源可以是静态页面或动态生成内容的进程。
+			》Hypertext Transfer Protocol（HTTP）【超文本传输协议】
+				HTTP定义了应用程序协议以及如何与通过URL提供的内容进行交互。根据 v1.1 的RFC 2616，但也有更现代的版本，如 RFC 7540中定义的HTTP/2和HTTP/3草案。HTTP 的核心概念是：
+				①	HTTP 方法【】
+					包括用于读取操作的GET和用于写入操作的POST，这些定义了类似CRUD的接口。
+				②	资源名
+					这决定了如何形成URL。
+				③	HTTP 状态码
+					2xx范围表示成功，3xx表示重定向，4xx表示客户端错误，5xx表示服务器错误
+			》Hyper Text Markup language（HTML）
+				HTML 最初是 W3C 规范，现在是通过 WHATWG 提供的现行标准。 超文本标记允许定义页面元素，例如标题或输入。
+		URI（URL的通用版本）是如何构造的（根据RFC3986)以及它如何映射到HTTP URL的，如下所示：
+				michaelh:12345678@http://example.com:4242/this/is/the/way?orisit=really#anther
+				\_____/  \______/ \__/  \_______________/ \_____________/ \__________/ \____/
+				 user      pwd    scheme  authority           path           query     fragment
+		URI的组成如下：
+			①	用户名和密码（可选）
+				这些组件最初用于基本身份验证，不应再使用。相反，对于HTTP，应该使用适当的身份验证机制以及HTTPS来进行线路加密。
+			②	scheme
+				指定URL方案，是定义其含义的IETF规范。对于HTTP，该方案为http，它实际上是HTTP规范系列，如RFC2616。
+			③	authority
+				分层命名部分。对于HTTP，这是：
+					》Hostname		要么是一个DNS FQDN，要么是一个IP地址。
+					》Port			默认为80
+			④	path
+				用于进一步资源详细信息的特定于方案的部分。
+			⑤	query 和 fragement（可选）
+				前者出现在？之后用于非分层数据（如，表达标签或表单数据），后者出现在#后面，表示辅助资源（在HTML的上下文中，这可能是一个section）。
+		可以通过 curl 命令（一个强大且流行的工具来于任何类型的URL交互）获取web 服务器的内容。curl 选项说明如下：
+				选项	长格式					描述和用法
+				-v		--verbose				详细输出，用于调试
+				-s		--silent				安静模式：不显示进度表或错误消息
+				-L		--location				运行页面重定向
+				-o		--output				默认情况下，内容会输出到标准输出；如果想直接将其存储在文件中，通过此选项指定
+				-m		--max-time				等待操作执行的最长晒你（单位：秒）
+				-I		--head					仅获取标头（注意：并非每个HTTP服务器都支持路径的HEAD方法）
+				-k		--insecure				默认情况下，HTTPS调用经过验证。使用此选项可以忽略不可能的情况下的错误。
+		如果 curl 不可用，还可以使用 wget，虽然比较有限，但对于简单的 HTTP 相关交互来说已经足够了。
+	Ⅱ	Secure Shell
+		Secure Shell (SSH) 是一种加密网络协议，用于在不安全的网络上安全地提供网络服务。 例如，作为 telnet 的替代品，您可以使用 ssh 登录远程计算机，并在（虚拟）计算机之间安全地移动数据。
+		使用SSH登录远程主机，如：
+			$ ssh \
+				-i ~/.ssh/lml.pem \				# 使用身份文件，而不是密码。明确提供该文件是一种很好的做法。
+				ec2-user@192.168.3.5 			
+		一些常规SSH使用技巧：
+			①	SSH 服务器应禁用密码认证【PasswordAuthentication】。这样会强制用户创建密钥对，并将公钥共享给服务端【将其添加到 ~/.ssh/authorized_keys文件】
+			②	使用 ssh -tt 强制分配伪tty
+			③	当ssh 到服务器时，使用 export TERM=xterm ，以防出现显示问题。
+			④	为客户端的ssh 会话设置超时。以每个客户为基础【通常使用 ~/.ssh/config】，设置 ServerAliveInterval 和 ServerAliveCountMax 。
+			⑤	如果遇到问题，并且已经排除了密钥的本地权限问题，那么可以尝试使用 -v 选项启动 ssh，提供有关幕后情况的详细信息（另外，尝试多个实例 v 的，例如 -vvv 以获得更细粒度的调试信息）。
+		SSH 不仅供人类直接使用，而且还用作底层的构建块，例如在文件传输工具中。
+	Ⅲ	文件传输
+		涉及网络的一项非常常见的任务是传输文件。 可以从本地计算机到云中的服务器或从本地网络中的另一台计算机执行此操作。要在远程系统之间进行复制，可以使用scp【在SSH之上工作】。如：
+			# scp copyme ec2-user@abc.com:/home/ec2-user/
+		使用rsync同步文件比scp方便快捷得多。 在底层，rsync 默认使用 SSH。如：
+			# rsync -avz ~/data mh9@:abc.com:
+	Ⅳ	网络文件系统
+		一种得到广泛支持和使用的通过网络从中央位置共享文件的方法是通过网络文件系统 (NFS)，该系统最初由 Sun Microsystems 在 20 世纪 80 年代初开发。 它根据 RFC 7530 和其他相关 IETF 规范进行了多次迭代，并且非常稳定。
+		许多云提供商（例如 AWS 和 Azure）现在都提供 NFS 作为服务。 这是一种很好的方式，可以为需要大量存储空间的应用程序提供大量空间，其外观和感觉几乎就像本地附加存储一样。 
+		然而，对于媒体应用程序，网络附加存储 (NAS) 【https://olinux.net/open-source-linux-nas-servers/ 】设置可能是更好的选择。
+5、高级网络主题
+	Ⅰ	whois
+		whois【】是whois目录服务的客户端，可用于查找注册和用户信息。如，想找出ietf.org域背后的人（注意，可以想域注册商付费将该信息保密），可执行以下操作：
+			# whois ietf.org
+			Domain Name: ietf.org
+			Registry Domain ID: 73d0271a0fc745c3b8b632a5032ae75a-LROR
+			Registrar WHOIS Server: http://whois.cloudflare.com
+			Registrar URL: http://www.cloudflare.com
+			Updated Date: 2023-06-26T01:01:27Z
+			Creation Date: 1995-03-11T05:00:00Z
+			Registry Expiry Date: 2026-03-12T05:00:00Z
+			Registrar: CloudFlare, Inc.
+			Registrar IANA ID: 1910
+			[...]
+	Ⅱ	Dynamic Host Configuration Protocol【动态主机配置协议】
+		动态主机配置协议 (DHCP) 是一种网络协议，可自动为主机分配 IP 地址。 这是一种客户端/服务器设置，无需手动配置网络设备。
+		可以使用dhcpdump扫描DHCP数据包【本地网络中的设备需要加入】，如
+
+	Ⅲ	Network Time Protocol【网络时间协议】
+		网络时间协议 (NTP) 用于通过网络同步计算机的时钟。 例如，使用 ntpq 命令（一个标准 NTP 查询程序），可以进行显式时间服务器查询，如下所示：
+			# ntpq -p
+	Ⅳ	Wireshark 和 tshark
+		如果想要进行低级网络流量分析（即想要准确查看堆栈中的数据包），可以使用命令行工具 tshark 或其基于GUI的版本 wireshark 。如：
+			# tshark -i ens33 tcp
+	Ⅴ	其他高级工具
+		可能会发现许多有用的高级网络相关工具，包括但不限于以下工具：
+			socat
+				建立两个双向字节流并启用端点之间的数据传输
+			geoiplookup
+				允许映射一个IP到地理区域
+			Tunnels
+				VPN 和其他站点到站点网络解决方案的易于使用的替代方案。 通过 inlets 等工具启用。
+扩展
+	Ⅰ	TCP/IP stack
+		Understanding Linux Network Internals by Christian Benvenuti (O’Reilly) 		【https://www.oreilly.com/library/view/understanding-linux-network/0596002556/ 】
+		“A Protocol for Packet Network Intercommunication”								【https://www.cs.princeton.edu/courses/archive/fall06/cos561/papers/cerf74.pdf 】
+		DHCP server setup webpage														【https://wiki.debian.org/DHCP_Server 】
+		“Hello IPv6: A Minimal Tutorial for IPv4 Users”									【https://metebalci.com/blog/hello-ipv6/ 】
+		“Understanding IPv6—7 Part Series”												【https://www.networkingwithfish.com/understanding-ipv6-7-part-series/ 】
+		Collection of IPv6 articles by Johannes Weber									【https://weberblog.net/ipv6/ 】
+		Iljitsch van Beijnum’s BGP Expert website										【https://www.bgpexpert.com/ 】
+		“Everything You Ever Wanted to Know About UDP Sockets but Were Afraid to Ask”	【https://blog.cloudflare.com/everything-you-ever-wanted-to-know-about-udp-sockets-but-were-afraid-to-ask-part-1/ 】
+	Ⅲ	DNS
+		“An Introduction to DNS Terminology, Components, and Concepts”					【https://www.digitalocean.com/community/tutorials/an-introduction-to-dns-terminology-components-and-concepts 】
+		“How to Install and Configure DNS Server in Linux”								【https://www.thegeekstuff.com/2014/01/install-dns-server/ 】
+		“Anatomy of a Linux DNS Lookup”													【https://zwischenzugs.com/2018/06/08/anatomy-of-a-linux-dns-lookup-part-i/ 】
+		“TLDs—Putting the .fun in the Top of the DNS”									【https://www.netmeister.org/blog/tlds.html 】
+	Ⅳ	Application layer and advanced networking
+		“SSH Tunneling Explained”														【https://goteleport.com/blog/ssh-tunneling-explained/ 】
+		Everything curl																	【https://curl.se/book.html 】
+		“What Is DHCP and How to Configure DHCP Server in Linux”						【https://linuxconfig.org/what-is-dhcp-and-how-to-configure-dhcp-server-in-linux 】
+		“How to Install and Configure Linux NTP Server and Client”						【https://www.thegeekstuff.com/2014/06/linux-ntp-server-client/ 】
+		NFS wiki																		【https://linux-nfs.org/wiki/index.php/Main_Page 【
+		“Use Wireshark at the Linux Command Line with TShark”							【https://opensource.com/article/20/1/wireshark-linux-tshark ]
+		“Getting Started with socat”													【https://www.redhat.com/sysadmin/getting-started-socat 】
+		“Geomapping Network Traffic”													【https://xn--blgg-hra.no/2015/10/geomapping-network-traffic/ 】
+	
+
+Observability
+	有关可观察性的最佳视觉概述可能来自表演大师布伦丹·格雷格（Brendan Gregg）。在他的Linux Performance 站点【https://www.brendangregg.com/linuxperf.html 】，有丰富的可用移动部件和工具。		
+1、基础
+	Ⅰ	可观测性策略
+		在可观察性背景下，一种广泛建立的策略是OODA循环（观察-定向-决定-行动）。它提供了一种结构化的方法来测试基于观察到的数据的假设并对其采取行动——也就是说，一种从信号中获得可操作的见解的方法。
+		例如，假设应用程序速度很慢。进一步假设有多种可能的原因（内存不足、CPU 周期太少、网络 I/O 不足等）。首先，希望能够测量每种资源的消耗。 然后，将单独更改每个资源分配（保持其他资源分配不变）并衡量结果。
+		为应用程序提供更多 RAM 后性能是否会提高？ 如果是这样，可能已经找到原因了。如果没有，将继续使用不同的资源，始终测量消耗并尝试将观察到的对情况的影响联系起来。
+	Ⅱ	术语
+		可观测性空间中有一系列术语，但并非所有术语都有正式定义。 此外，如果您查看的是单台计算机或处于网络（分布式）设置中，含义可能会略有不同：
+		①	可观测性【Observerability】
+			通过测量外部信息来评估系统（如Linux）的内部状态，通常是为了对其采取行动。如，如果注意到系统反应缓慢，并测量了可用的主内存量，可能会发现某个特定的应用程序占用了全部内存，可能会决定终止它以纠正这种情况。
+		②	信号类型【Signal Type】
+			表示和发出有关系统状态的信息的方式不同，可以通过符号方式（有效负载是文本，如日志）或数字（如指标）或其组合。
+		③	源【Sources】
+			生成可能不同类型的信号。来源可以是Linux操作系统或应用程序。
+		④	目标【Destination】
+			消费、存储和进一步处理信号的地方。将公开用户界面（GUI、TUI或CLI）的目标成为前端。
+		⑤	遥测【Telemetry】
+			从源提取信号并将信号传输（或路由、运输）到目的地的过程，通常使用代理来收集和发送信号。
+	Ⅲ	信号类型
+		信号是传达系统状态以进行进一步处理或解释的方式。 总的来说，区分文本有效负载（最适合人类搜索和解释）和数字有效负载（对机器和处理后的人类都有好处）。三种基本且常见的信号类型是：日志、指标和跟踪。
+		①	日志【logs】
+			日志是每个系统在某种程度上都会生成的基本信号类型。 日志是具有文本负载的离散事件，供人类使用。 通常，这些事件带有时间戳。 
+			理想情况下，日志的结构应为日志消息的每个部分定义明确的含义。 该含义可能通过正式模式来表达，以便可以自动执行验证。
+			虽然自动化日志内容很困难（鉴于其文本性质），但日志对人类仍然非常有用，因此它们可能会在一段时间内保持主导信号类型，日志是最重要的信号类型（就我们的考虑而言）。
+		②	Metrics【指标】
+			指标（通常是定期）采样的数值数据点，形成时间序列。各个数据点可以具有维度或标识元数据形式的附加上下文。通常，不会直接使用原始指标；相反，可以使用某种聚合或图形表示，或者在满足特定条件时收到通知。
+			指标对于操作任务和故障排除都非常有用，可以回答诸如应用程序完成了多少事务或某个操作花费了多长时间（在过去 X 分钟内）之类的问题。
+			指标类型如下：
+				》Counter		计数器的值只能增加（除了将计数器重置为零之外）。 计数器指标的一个示例是一段时间内由服务处理的请求总数或通过接口发送的字节数。
+				》Guages		仪表值可以上升或下降。例如，可以测量当前可用的总体主内存或正在运行的进程数。	
+				》Histograms	构建值分布的复杂方法。使用存储桶【buckets】，直方图可以评估数据的整体结构。它们还可用于做出灵活的陈述（如50%或90%的值落入某个范围）
+		③	Traces【跟踪】
+			跟踪是运行时信息的动态集合（如，有关进程使用的系统调用的信息，或内核中针对给定原因的事件序列的信息）。跟踪通常不仅用于调试，还用于性能评估。
+2、日志
+	日志是具有文本有效负载的离散事件（集合），并针对人类使用进行了优化。
+		①	Discrete events【离散事件】
+			考虑代码库上下文中的离散事件。希望使用（原子）日志项来共享有关代码中发生的情况的信息。例如，发出一条日志行，表明数据库连接已成功建立。另一个日志项可能是由于文件丢失而标记错误。
+			保持日志消息的范围小而具体，以便使用该消息的人更容易找到代码中的相应位置。
+		②	文本负载
+			日志消息的有效负载具有文本性质。
+	从结构上看，总体而言，日志包括以下内容：
+		①	日志项、消息或行的集合		捕获有关离散事件的信息。
+		②	元数据或上下文				可以以每条消息为基础，也可以以全局范围（如整个日志文件）为基础
+		③	如何解释单个日志消息的格式	定义日志的部分和含义。如，面向行、空格分隔的消息或JSON模式
+	常用日志格式如下：
+		格式						说明
+		事件格式				由ArcSight开发； 用于设备、安全用例
+		日志格式				用于Web服务器；
+		Graylog扩展日志格式		由Graylog开发；改进系统日志【Syslog】
+		Syslog					用于操作系统，应用程序，设备
+		嵌入指标格式			由Amazon开发（日志和指标）
+	为了避免日志开销（实现快速查找和占用空间小），可以使用日志轮转【如，通过logrotate】。称为数据温度的高级概念也可能很有用，可以将较旧的日志文件移动到更便宜且速度较慢的存储（附加磁盘、S3 存储桶、Glacier）。
+	为了表明日志项的重要性或预期目标使用者，日志通常会定义级别（例如，用于开发的 DEBUG、用于正常状态的 INFO 或用于可能需要人工干预的意外情况的 ERROR）。
+	Linux的中央日志目录是/var/log。实时使用日志（即发生时）的一种常见模式是跟踪日志； 也就是说，会在添加新日志行时观察日志的末尾。如：
+		# tail -f /var/log/syslog
+	如果想查看某个进程的日志输出，同时将其存储在文件中，可使用 tee 命令，如：
+		# someprocess | tee -a some.log
+	使用 -a 选项追加日志到日志文件，否则将被截断。
+	Ⅰ	syslog
+		syslog是一系列源的日志记录标准，从内核到守护进程再到用户空间。他植根于网络环境，如今该协议包含RFC 5424中定义的文本格式以及部署场景和安全注意事项。
+		RFC 5424中定义的syslog格式具有以下标头字段（最常用的是TS和HN）：
+			①	PRI		设施/严重性【facility/severity】消息
+			②	VER		syslog协议数字（通常被忽略，因为它只能是1）
+			③	TS		包含使用ISO8601格式生成消息的时间按
+			④	HN		标识发送消息的机器
+			⑤	APP		标识发送消息的应用程序（或设备）
+			⑥	PID		标识发送消息的进程
+			⑦	MID		可选的消息ID
+		该格式还包括结构化数据，它是结构化（基于键/值）列表中的有效负载，其中每个元素都以 [] 为界。
+		通常，会使用syslogd二进制文件来进行日志管理。随着时间的推移，应该注意其他可用的选项：
+			①	syslog-ng
+				一个增强的日志守护程序，可以将其用作 syslogd 的直接替代品，此外还支持 TLS、基于内容的过滤以及登录到 PostgreSQL 和 MongoDB 等数据库。
+			②	rsyslog
+				扩展了 syslog 协议，也可以与 systemd 一起使用。
+		syslog 系列协议和工具仍然存在并广泛使用。 随着 systemd 成为 init 系统事实上的标准并在每个主要 Linux 发行版中使用，然而，有一种新的日志记录方法： systemd 日志。
+	Ⅱ	journalctl
+		systemd生态系统中负责日志管理的一个组件是journalctl。与syslog和迄今为止使用其他系统相比，journalctl使用二进制格式来存储日志项。这允许更快的访问和更好的存储空间。
+		如果在不带参数的情况下启动journalctl，，它会将自己呈现为所有日志的交互式分页器。要限制时间范围，可以使用如下命令，如：
+			$ journalctl --since "3 hours ago"
+			$ journalctl --since "2021-09-26 15:30:00" --until "2021-09-26 18:30:00"
+		可以将输出限制为特定的systemd 单元【如，abc.service】。如：
+			$ journalctl -u abc.service
+		journalctl有一种强大的方法来格式化日志项的输出。使用--output（或-o）参数，可以针对特定用例优化输出。如：
+			cat		短格式，没有时间戳或源
+			short	默认，模拟syslog输出
+			json	每行一个JSON格式的条目（用于自动化）
+		可以使用 -f 获得与 tail -f 相同的跟踪日志形式。如：
+			$ journalctl -f
+3、监控
+	监控是出于多种原因捕获系统和应用程序指标。在监控过程中最常执行的两类活动如下：
+		》跟踪一个或多个指标（随着时间的推移）
+		》根据条件发出警报
+	使用 uptime 命令显示一些基本指标【如系统运行的时间、内存使用情况等】：
+		# uptime
+		 23:02:05 up  8:19,  2 users,  load average: 0.03, 0.01, 0.06
+	使用 free 命令监控一些基本的内存利用率，如：
+		# free -h
+    		           total        used        free      shared  buff/cache   available
+		Mem:           3.5Gi       505Mi       3.0Gi       9.0Mi       298Mi       3.0Gi
+		Swap:          2.0Gi          0B       2.0Gi
+	查看内存使用情况的一种更复杂的方法是使用 vmstat（virtual memory stats）命令，如【1 表示每秒打印一个新的摘要行】：
+		# vmstat 1
+		procs -----------memory---------- ---swap-- -----io---- -system-- ------cpu-----
+		 r  b   swpd   free   buff  cache   si   so    bi    bo   in   cs us sy id wa st
+		 1  0      0 3112368   2708 303108    0    0     4     1   72   89  0  1 99  0  0
+		 0  0      0 3112368   2708 303148    0    0     0     0  166  182  0  0 99  1  0
+		 0  0      0 3112368   2708 303148    0    0     0     0  135  176  0  1 99  0  0
+		》输出说明：
+			r		表示正在运行或等待CPU的进程数（应小于或等于拥有的CPU数）
+			free	可用内存（单位：KB）
+			in		每秒中断数
+			cs		每秒上下文切换的次数
+			us ~ st	跨用户空间、内核、空闲等的总CPU时间的百分比
+	要查看某个操作需要多长时间，可以使用 time 命令。如：
+		# time (ls -R /etc 2&> /dev/null)
+
+		real    0m0.004s					# 花费的总（wall clock）时间（除了性能之外没有什么用处）
+		user    0m0.000s					# ls 本身在CPU（用户空间）上花费了多长时间）
+		sys     0m0.004s					# ls等待Linux做某事的时间（内核空间）
+	如果对操作花费的时间感兴趣，则取 user 和 sys 的总和是一个很好的近似值，并且两者的比率可以很好地了解它在哪里花费了大部分执行时间。
+	Ⅰ	设备I/O和网络接口
+		使用 iostat 可以监控I/O设备，如：
+			# iostat -z --human
+			Linux 5.14.0-352.el9.x86_64 (localhost.localdomain)     2023年12月25日  _x86_64_        (1 CPU)
+			
+			avg-cpu:  %user   %nice %system %iowait  %steal   %idle
+			           0.0%    0.0%    1.0%    0.0%    0.0%   98.9%
+			
+			Device             tps    kB_read/s    kB_wrtn/s    kB_dscd/s    kB_read    kB_wrtn    kB_dscd
+			dm-0              0.52        15.4k         9.5k         0.0k     471.6M     290.6M       0.0k
+			dm-1              0.84         1.5k         2.0k         0.0k      44.7M      60.0M       0.0k
+			sda               0.71        17.2k        11.5k         0.0k     525.5M     352.6M       0.0k
+			sr0               0.00         0.1k         0.0k         0.0k       2.0M       0.0k       0.0k
+			sr1               0.00         0.1k         0.0k         0.0k       2.0M       0.0k       0.0k
+		》输出说明：
+			tps		设备每秒的传输（I/O请求）数
+			read	数据量
+			wrtn	写入数据量
+		使用 ss 命令的网络接口可以转储套接字统计信息。如【列出TCP和UDP套接字以及进程ID】：
+			# ss -atup
+			Netid            State             Recv-Q            Send-Q                           Local Address:Port                          Peer Address:Port              Process                                                
+			udp              ESTAB             0                 0                            192.168.3.17%ens33:bootpc                         192.168.3.1:bootps             users:(("NetworkManager",pid=787,fd=26))             
+			udp              UNCONN            0                 0                                     127.0.0.1:323                                0.0.0.0:*                  users:(("chronyd",pid=730,fd=5))                     
+			udp              UNCONN            0                 0                                         [::1]:323                                   [::]:*                  users:(("chronyd",pid=730,fd=6))                     
+			tcp              LISTEN            0                 5                                       0.0.0.0:irdmi                              0.0.0.0:*                  users:(("python3",pid=1464,fd=3))                   
+			tcp              LISTEN            0                 128                                     0.0.0.0:ssh                                0.0.0.0:*                  users:(("sshd",pid=812,fd=3))                        
+			tcp              ESTAB             0                 0                                  192.168.3.17:ssh                            192.168.3.4:60048              users:(("sshd",pid=1470,fd=4),("sshd",pid=1466,fd=4))
+			tcp              ESTAB             0                 0                                  192.168.3.17:ssh                            192.168.3.4:58590              users:(("sshd",pid=992,fd=4),("sshd",pid=978,fd=4))  
+			tcp              LISTEN            0                 128                                        [::]:ssh                                   [::]:*                  users:(("sshd",pid=812,fd=4))
+		》选项说明：
+			-a			选择所有【包含正在监听和没有正在监听的套接字】
+			-t			选择TCP
+			-u			选择UDP
+			-p			显示使用套接字的进程
+		》输出说明：
+			Stat		套接字状态，其中ESTAB表示TCP连接已建立
+			Recv-Q		排队等待接收的数据
+			Send-Q		排队等待传输的数据
+		收集和显示接口统计信息的一种过时方法是使用 netstat。例如，如果想要持续更新 TCP 和 UDP 视图，包括进程 ID 并使用 IP 地址而不是 FQDN，则可以使用 netstat -ctulpn。
+		lsof【list open files】，是一个具有许多用法的多功能工具。如【显示在网络连接上下文使用lsof】：
+			# lsof -i TCP:1-1024
+			COMMAND  PID USER   FD   TYPE DEVICE SIZE/OFF NODE NAME
+			sshd     812 root    3u  IPv4  23813      0t0  TCP *:ssh (LISTEN)
+			sshd     812 root    4u  IPv6  23822      0t0  TCP *:ssh (LISTEN)
+			sshd     978 root    4u  IPv4  29531      0t0  TCP localhost.localdomain:ssh->192.168.3.4:58590 (ESTABLISHED)
+			sshd     992 root    4u  IPv4  29531      0t0  TCP localhost.localdomain:ssh->192.168.3.4:58590 (ESTABLISHED)
+			sshd    1466 root    4u  IPv4  33596      0t0  TCP localhost.localdomain:ssh->192.168.3.4:60048 (ESTABLISHED)
+			sshd    1470 root    4u  IPv4  33596      0t0  TCP localhost.localdomain:ssh->192.168.3.4:60048 (ESTABLISHED)
+		这里列出特权TCP端口（需要root权限）。
+		lsof的另一个使用示例是以进程为中心的视图【如，知道进程的PID，可以使用lsof跟踪文件描述符，I/O等】：
+			# lsof -p 5299
+		还有更多用于（性能）监控的工具可用，例如 sar（涵盖一系列计数器，非常适合脚本）和 perf.
+	Ⅱ	集成性能监视器
+		集成性能监视器提供以下功能：
+			》支持多资源类型（CPU，RAM，I/O）
+			》交互式排序和过滤（按进程、用户、资源）
+			》实时更新并深入了解进程组甚至cgroup和命名空间等详细信息
+		如 top 命令，其输出包含：
+			①	系统摘要
+			②	任务统计
+			③	CPU使用统计（用户、内核等，与vmstat输出相同）
+			④	动态进程列表，包括每个进程级别的详细信息；与ps aux输出相似。
+		top 命令重要的key 如下：
+			？	列出帮助（包含key映射）
+			V	在进程树视图之间切换
+			m	通过内存使用排序
+			p	通过CPU消耗排序
+			k	发送一个信号
+			q	退出
+		虽然 top 几乎可以在任何环境中使用，但还有许多可用的替代方案，包括以下内容：
+			htop
+				增量 top 改进，比 top 更快并且具有更好的用户界面。
+			atop
+				一个强大的top 替代方案。除了CPU和内存之外，还详细介绍了I/O和网络统计等资源。
+			below
+				这是一个相对较新的工具，尤其值得注意的是，它支持cgroup v2。其他工具不理解cgroup，因此仅提供全局资源视图。
+		还有许多其他可用的集成监控工具，这些工具超出了基本来源或专门针对某些用例。这些包括但不限于以下内容：
+			》glances		强大的混合体，涵盖除常用资源之外的设备			【https://nicolargo.github.io/glances/ 】
+			》guider		集成的性能分析器，允许显示一系列指标并绘制图表	【https://github.com/iipeace/guider 】
+			》neoss			用于网络流量监控；提供良好 TUI de ss 替代平		【https://github.com/PabloLec/neoss 】
+			》mtr			用于网络流量监控；traceroute 的更强大替代方案	【https://www.bitwizard.nl/mtr/ 】
+	Ⅲ	Instrumentation
+4、Advanced Observability
+
+
+Advanced Topics
+1、进程间通信
+	在Linux中有一长串可用的进程间通信（IPC）【https://en.wikipedia.org/wiki/Inter-process_communication 】选项。范围从管道到套接字再到共享内存。
+	IPC使进程能通信、同步活动和共享数据。如，Docker 守护进程使用可配置的套接字来管理容器。
+	Ⅰ	信号【signal】
+		信号【https://www.man7.org/linux/man-pages/man7/signal.7.html 】最初是作为内核向用户空间进程通知事件的一种方式而开发的。将信号视为发送到进程的异步通知。
+		有许多可用的信号【man 7 signal】。并且大多数信号都带有默认操作，如停止或终止进程。
+		对于大多数信号，可以定义自定义处理程序，而不是让Linux继续执行默认操作。如，当想要执行一些清理工作或只是忽略某些信号时，这非常有用。常用信号如下：
+			信号			含义						默认动作						处理选项				组合键
+			SIGHUP		告知守护进程重读其配置文件		终止进程					nohup 或自定义处理器		N/A
+			SIGINT		用户从键盘中断					终止进程					自定义处理器				Ctrl+C
+			SIGQUIT		用户从键盘退出					core dump 或 终止进程		自定义处理器				Ctrl+\
+			SIGKILL		杀死信号						终止进程					不能被处理					N/A
+			SIGSTOP		停止进程						停止进程					不能被处理					N/A
+			SIGTSTP		用户从键盘导致停止				停止进程					自定义处理器				Ctrl+Z
+			SIGTERM		优雅的终止						终止进程					自定义处理器				N/A
+		还有一些没有定义含义的信号（SIGUSER1 he SIGUSER2），如果双方都同意信号的语义，进程可以使用它们相互通信，发送异步通知。
+		向进程发送信号的一种典型方法是 kill 命令（其默认行为导致进程终止）。还可以使用 trap 处理信号，这允许在shell环境中定义自定义处理程序，如：
+			# trap "echo abcdef" SIGINT
+			# trap
+			trap -- 'echo abcdef' SIGINT
+		这样可通过 Ctrl+C 告诉Linux在默认操作（终止）之前执行 echo abcdef【注意 sleep 不会触发echo abcdef】
+	Ⅱ	命名管道【named pipes】
+		管道【|】将一个进程的stdout与另一个进程的stdin连接来将数据从一个进程传递到另一个进程——这些管道为未命名管道。命名管道是可以为其分配自定义名称的管道。
+		就像未命名管道一样，命名管道与普通文件I/O（打开、写入等）一起工作，并提供先进先出（FIFO）传送。与未命名管道不同，命名管道的生命周期并不限于它所使用的进程。
+		从技术上讲，命名管道是管道的包装器，使用pipelinefs 伪文件系统。使用 mkfifo 创建命名管道，如：
+			# mkfifo examplepipe
+			# ls -l examplepipe
+`			prw-r--r--. 1 root root 0 12月 26 02:58 examplepipe
+			# while true; do echo "x" > examplepipe; sleep 5; done &			# 使用循环将 x 发布到管道中【注意，除非其他进程从examplepipe读取数据，否则管道将被阻塞。无法再对其进行写入】
+[			1] 2432
+			# while true; do cat < examplepipe; sleep 5; done &					# 启动第二个进程，循环从管道中读取数据。
+			[2] 2434
+			x
+			x
+		命名管道很容易使用。由于其设计，看起来就像普通文件一样。但它们也有局限性，因为它们只支持一个方向和一个消费者。
+	Ⅲ	Unix 域套接字【UNIX Domain Sockets】【https://en.wikipedia.org/wiki/Unix_domain_socket 】
+		除了网络环境中的套接字。还有其他类型的套接字专门在单台机器的上下文中工作，其中一种称为UNIX域套接字：它们是双向的、多路通信端点。这意味着可以有多个消费者。
+		域套接字分为三种类型【https://www.man7.org/linux/man-pages/man7/unix.7.html 】：面向流的（SOCK_STREAM）、面向数据报的（SOCK_DGRAM）和顺序数据包（SOCK_SEQPACKET）。
+		寻址基于文件系统路径名。不需要IP地址和端口，简单的文件路径就足够了。
+		通常，会以编程方式使用域套接字。但是，可能会发现处于需要对系统进行故障排除并希望使用命令行中的 socat【https://copyconstruct.medium.com/socat-29453e9fc8a6 】工具与套接字手动交互的情况。
+
+x
+x
+
+
+
+
+														
+		
+		
+
+
+	
+		
+	
+	
+
+		
+
+			
+
+
+
+
+
+
+				
+
+
+
+		
+
+
+
+
+
+			
+			
+
+			
+
+
 
 
 	
@@ -1308,4 +2022,3 @@ Networking
 
 
 	
-
