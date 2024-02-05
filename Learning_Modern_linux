@@ -1962,9 +1962,6 @@ Advanced Topics
 		寻址基于文件系统路径名。不需要IP地址和端口，简单的文件路径就足够了。
 		通常，会以编程方式使用域套接字。但是，可能会发现处于需要对系统进行故障排除并希望使用命令行中的 socat【https://copyconstruct.medium.com/socat-29453e9fc8a6 】工具与套接字手动交互的情况。
 
-x
-x
-
 
 
 

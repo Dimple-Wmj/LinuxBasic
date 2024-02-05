@@ -268,11 +268,951 @@ Connecting to a Network
 		某些网络服务需要它们所在的服务器系统的静态 IP 地址。 FTP、Web、VPN、数据库、Active Directory 和 DNS 等服务需要或建议使用静态 IP 地址。 
 		反对静态 IP 寻址的主要缺点和争论是管理。 争论的焦点是管理静态 IP 地址是一项劳动密集型工作，并且可能会导致网络其他地方发生冲突。
 	Ⅱ	动态IP地址
+		使用DHCP服务可以消除许多在DHCP出现之前困扰系统管理员的IP地址管理问题。为多个系统分配静态 IP 地址并保持它们的状态成为管理的噩梦。 当用户只有桌面系统时，静态 IP 地址更有意义。 
+		但如今，对于笔记本电脑、平板电脑和移动电话，静态 IP 地址可能意味着用户只能在其公司网络上进行网络访问，如果他们连接到另一个网络，就会遇到 IP 冲突，或者他们每次连接到不同的网络时，
+		他们都必须知道如何将系统从静态更改为动态分配的 IP 地址。
+		设备移动性是DHCP的一大优势。无论笔记本电脑在何处连接到另一个网络或互联网，用户都无需重新配置任何内容。 另一个优点是，一旦配置了 DHCP 地址池，您就不需要做太多维护工作。 
+		必须确定最适合用户的租赁期限。 如果使用较长的租约期限（超过几天），可能会通过删除重复项、过时的租约等进行偶尔的清理。 DHCP 应该会自行清理，但并非总是如此。
+		是否使用静态IP寻址、DHCP或两者的混合实际上取决于对IP地址管理的个人偏好。仍然可以使用纯DHCP方案并通过输入MAC地址来保留IP地址，使其静态分配。
+		唯一出现问题的情况是更换网络接口卡 (NIC)。必须记住使用新 NIC 的 MAC 地址更新 DHCP 保留列表。
+		如果更改网卡（NIC或适配器）设置，如从DHCP更改为静态IP地址，则需要重新启动适配器才能使这些更改生效。通过以下命令重启适配器：
+			ifdown adapter_name
+			ifup adater_name
+		适配器名称因系统而异【如，eth0和enp0s3】。
+2、网络和安全
+	有两种类型的 Linux 系统可以被认为是安全的：一种是关闭的，另一种是开启但未连接到网络的。 与非联网系统一样，关闭电源的系统也不会受到网络攻击。 关闭系统的唯一安全漏洞是物理安全。 能够物理访问系统的人可能会窃取、拆除或损坏它。
+	一旦将系统联网，就将其暴露于网络攻击下。恶意行为者不断扫描IP地址范围，寻找可利用的易受攻击的系统。虽然许多服务器通过非军事区（DMZ）暴露在互联网上，或位于受防火墙保护的公司或家庭网络内，但它们也容易受到攻击。
+	一旦进入网络，恶意行为者就可以对所有连接的系统执行自动扫描，搜索漏洞。
+	此外，在系统上创建用户帐户会降低安全性，因为密码较弱、可能遭受途中攻击以及可能会向恶意行为者泄露用户凭证的社会工程漏洞。因此，系统管理员必须采取以下措施：
+		①	只授予用户工作所需的权限（最小权限原则）
+		②	对密码、密钥或多因素身份验证实施强大的安全策略
+		③	定期修补和更新系统
+		④	对访问公司资源的所有系统、网络设备进行定期安全审核
+	Ⅰ	为系统联网做准备
+		当系统管理员配置新系统并将其安装到机架中时，插入网络电缆或将虚拟机连接到虚拟网络是标准做法。 我们经常依赖其他人来审查系统的功能、用途和安全选项。 
+		然而，这并非总是如此。新系统的安装通常是通过从准备好的操作系统映像（可能是几个月或几年前的）配置“标准版本”来自动执行的。使用旧图像是一种糟糕的安全做法。 
+		如果系统在完全更新和保护之前立即连接到网络，那么在开始在网络上执行常规任务之前，它很容易受到攻击和损害。
+		解决方案是在专用网络上配置新系统，在将其放入生产网络之前，它们可以从内部存储库接收更新、补丁和安全配置。
+	Ⅱ	修建系统
+		修建意味着从系统中删除不必要的服务和守护程序。没有必要通过运行具有多种无人使用的服务的生产系统来给自己制造问题，但这可能会使系统容易受到攻击。仅安装为用户或其他系统提供服务所需的内容。
+		如果发现某些用户需要偶尔使用的特殊服务或使系统处于不太安全的状态，请在需要时打开该服务并在不再使用时将其关闭，或者将该服务置于安全的位置 只能从有限数量的系统访问的网络。
+	Ⅲ	保护网络守护进程
+		决定安装和支持哪些网络守护进程通常很容易，因为每次构建系统时都知道系统的预期用途。 如果它是 Web 服务器，知道将安装 Apache 或 NGINX 等 Web 服务。 
+		如果系统是数据库服务器，将安装 MySQL、MariaDB 或其他一些数据库软件。 问题在于，系统要发挥作用，必须为其服务公开相应的 TCP 端口。 这些网络守护进程容易受到攻击，因此必须受到保护。
+		保护网络守护进程和服务的方法有多种，但安装您想要提供的服务的安全版本是最简单的方法。 例如，如果您的新系统是 DNS 服务器，请使用 DNSSEC。 
+		如果配置轻量级目录访问协议 (LDAP) 服务器，请使用 LDAPS。 对于受证书保护的 Web 服务器，请始终使用 HTTPS。
+			安全服务示例：
+				协议		端口		描述
+				https		443/tcp		使用TLS/SSL的HTTP协议
+				https		443/udp		使用TLS/SSL的HTTP协议
+				ldaps		636/tcp		使用SSL的LDAP
+				ldaps		636/udp		使用SSL的LDAP
+				imaps		993/tcp		使用SSL的IMAP
+				imaps		993/udp		使用SSL的IMAP
+				pop3s		995/tcp		使用SSL的POP-3
+				pop3s		995/udp		使用SSL的POP-3
+		使用安全协议和加密并不能保证安全。 尽管如此，它还是比使用不加密的不安全协议要好。 即使对于安全的应用程序和协议来说，漏洞也经常出现。 保持系统更新和打补丁有助于防止安全漏洞。 
+		安全补丁通常在造成广泛损害之前就可用，但并非总是如此，因此您必须在维护安全方面保持警惕
+	Ⅳ	安全SSH守护进程
+		几乎每个 Linux 系统上最常见的网络守护进程是 Secure Shell (SSH) 守护进程。 SSH 通过网络提供与 Linux 系统的安全（加密）连接。 
+		尽管 SSH 守护程序 (SSHD) 通过其加密通道具有内置安全性，但其通信仍然容易受到攻击。有多种方法可以保护 SSHD，从而使攻击者的攻击效果较差。
+		①	限制从指定主机访问SSHD
+			管理员可以使用两个文件来限制对任何守护进程的访问：/etc/hosts.allow 和 /etc/hosts.deny 。不需要重新启动服务，因为它们不是配置文件，每次客户端访问服务时系统都会检查它们。
+			/etc/hosts.allow 更重要【它会覆盖 /etc/hosts.deny】。如在/etc/hosts.allow 中用于从单个IP的覅之启用SSH连接：
+				sshd: 192.168.1.50
+				sshd: ALL: DENY
+			这里仅接收来自 192.168.1.50 的SSH连接，并拒绝来自所有其他IP地址的连接。如果发现在 /etc/hosts.allow 中的条目无效，就需使用以下命令检查sshd中的tcp_wrapper集成：
+				sudo ldd /path/to/binary | grep libwrap
+				sudo ldd /usr/sbin/sshd | grep libwrap
+			如果没有收到响应，则 sshd 未在启用 tcp_wrappers 的情况下进行编译，并且可能已在发行版中被弃用。 不幸的是，许多打包的 sshd 安装都是这种情况。如果sshd没有tcp_wrappers支持，有三个选择：
+				①	使用其他方法加固sshd（firewall 规则，iptables，nftables）
+				②	编译安装openssh_server 启用tcp_wrapper
+				③	查找并替换当前的sshd为启用了tcp_wrapper的openssh_server包
+			防火墙相关设置如下：
+				》实施firewalld规则：
+					如果使用firewalld，首先从firewalld规则中删除sshd服务：
+						firewall-cmd --permanent --remove-service=ssh
+					添加新的域，而不是使用默认域：
+						firewall-cmd --permanent --new-zone=SSH_zone
+						firewall-cmd --permanent --zone=SSH_zone --add-source=192.168.1.50
+						firewall-cmd --permanent --zone=SSH_zone -add-service=ssh
+					重启firewall，使新配置生效：
+						firewall-cmd --reload
+					如果使用 iptables，可以使用单一命令限制ssh允许单一IP地址访问：
+						iptables -A INPUT -p tcp -s 192.168.1.50 --dport 22 -j ACCEPT
+					对于netfilter（nft），添加新规则：
+						nft insert rule ip filter input ip saddr 192.168.1.50 tcp dport 22 accept
+					但是，如果您收到如下错误，则必须为规则创建新表和链，或者使用现有链【Error: Could not process rule: No such file or directory.】：
+						nft add table ip filter 			# create table
+					创建链【chain】：
+						nft add chain ip filter input {type filter hook input priority 0\;}
+						nft insert rule ip filter input ip saddr 192.168.1.50 tcp dport 22 accept
+				注意：链名区分大小写。如果使用存在的链【INPUT】，将不会收到错误：
+						nft insert rule ip filter INPUT ip saddr 192.168.1.50 tcp dport 22 accept
+					更改后，重启nftables，如：
+						systemctl restart nftables
+				nftables 系统取代了 iptables，并将 iptables、ip6tables、arptables 和 ebtables 的功能组合到一个实用程序中。 可以在 netfilter 主页【http://www.nftables.org/ 】上阅读有关 nftables 的更多信息。
+				现在，可以使用多种方法来限制随机主机对 SSH 守护程序的访问。 如果不想指定特定的 IP 地址，可以使用 192.168.1.0/24 而不是单独的 IP 地址按子网隔离目标系统。
+		②	拒绝SSH登录root 用户
+			还可以使用 /etc/ssh/sshd_config 文件来配置SSH守护进程限制访问特定用户【如，root】。应该拒绝root用户的SSH访问。普通用户应通过SSH登录，然后成为root或使用sudo命令以root用户身份执行任务。
+			通过 PermitRootLogin 配置是否允许访问 root 用户。如允许通过 SSH 登录 root 用户：
+				PermitRootLogin yes
+		③	使用 keys 而不是密码进行验证
+			密码身份验证是对用户进行身份验证最不安全的方法。使用密钥文件更加安全和高效。使用 PasswordAuthentication 选项来设置是否允许密码验证。如允许通过密码登录：
+				PasswrodAuthentication yes
+			使用 密钥进行登录验证，如：
+				PubkeyAuthentication yes
+				AuthorizedKeysFile .ssh/authorized_keys
+			在客户端，用户需要执行以下操作来设置密钥对身份验证：
+				ssh-keygen -t rsa				# 生成公私钥
+				ssh-copy-id tux@192.168.3.10	# 将公钥复制到远程目标主机【.ssh/authorized_keys】
+		③	远程连接：客户端到服务器
+			连接到安全协议服务时，客户端软件会在安全通道上与服务守护进程通信。不必让用户执行任何特殊操作来协商客户端和服务守护程序之间的安全通信链接。
+			作为管理员，保持客户端软件最新与更新服务器上的软件同样重要。
+
+
+Installing and Uninstalling Software
+	安装和卸载软件是系统管理员的基本任务。大多数情况下，将安装可以自动化的更新。安装的任何新软件都应附有请求方的业务理由、变更控制记录以及对安全影响的书面理解（如果有）。
+	安装具有已知漏洞的软件是恶意行为者危害您系统的一个简单途径。卸载软件还需要更改控制记录，因为删除某些其他关键系统或服务功能所需的程序包、目录或库存在潜在危险。
+	软件安装方法有三种：使用包管理器从仓库安装、安装下载到本地文件系统的各个包以及编译源代码。
+	卸载软件有两种标准方法：使用包管理工具，如果是已编译的软件，则使用卸载过程【uninstall process】。第三种非标准卸载方法是通过删除目录、库和二进制文件来手动卸载软件。
+	手动软件删除是一项繁琐的任务，只有高级系统管理员才能执行。
+	系统更新非常重要，应该在执行其他任务之前进行更新。在进行故障排除时，应该始终更新系统，以检查简单的更新是否可以解决问题。快速的系统更新可能会减少删除或安装新软件来解决问题的需要。
+1、更新系统
+	更新系统是标准维护的一部分【许多系统管理员每周进行更新，这是一个很好的做法】。根据需要进行补丁、更新和升级来缓解漏洞【安全是首要任务】。
+	Ⅰ	应用基于 Red Hat 的系统更新
+	基于 Red Hat 的Linux 使用YUM/DNF工具从仓库维护更新和软件安装。YUM/DNF (yum/dnf) 是从官方 Red Hat 软件存储库以及其他第三方存储库获取、安装、删除、查询和管理 Red Hat Enterprise Linux RPM 软件包的主要工具。
+	DNF 是 YUM 版本 4，是从 Red Hat Enterprise Linux 版本 8 开始使用的工具。 要开始更新，请发出 yum 或 dnf 命令：
+		# yum update
+		# dnf -y update
+2、从仓库安装软件
+	从存储库安装软件是在 Linux 系统上安装软件的最简单方法。它是最简单的方法，因为存储库会自动满足依赖关系，除了请求安装之外，无需执行任何操作。
+	Ⅰ	安装应用
+		yum -y install lynx
+		dnf config-manager --set-enabled powertools		# 启用仓库
+		dnf install lynx
+	Ⅱ	卸载应用
+		Red Hat 软件包管理器 rpm 可安装、卸载和查询各个软件包及其依赖项【-e 从系统中删除（erases）目标包】。当删除软件包没有错误时，系统不会给出任何响应。
+		自动删除步骤会自动删除未使用的依赖项。系统可能会有多个未使用的依赖项，删除它们通常是安全的：
+			rpm -e lynx
+3、安装和卸载单独的软件包
+	对于不属于任何仓库的供应商网站、GitHub和SourceForge。必须在命令行手动安装这些单独的软件包。可以使用本地包管理器实用程序（rpm），而不是实用仓库命令来安装这些包。
+	在尝试安装目标包之前，请务必阅读目标包附带的任何文档。检查依赖项、配置和任何安全警告。在安装目标包之前，需要满足依赖关系。
+	Ⅰ	手动安装单独的软件包
+		可以使用 downloadonly 选项仅下载仓库中的包。如：
+			dnf --downloadonly install lynx
+		当使用此方法下载包时，它们将存储在 /var/cache/dnf 目录的子目录中。包下载到的子目录取决于包的源仓库。
+		当安装某个包【如，lynx】时，如果依赖包没有安装，则会报错【需要事前安装其依赖项】。
+			rpm -i centos-indexhtml-8.0-0el8.noarch.rpm
+			rpm -i lynx-2.8.9-2.el8.x86_64.rpm
+	Ⅱ	卸载单独的软件包
+		要卸载手动安装的软件包，必须逆向执行该过程【以相反的顺序卸载，从最后安装的软件包开始】。即先卸载所有依赖项，然后再卸载包本身。如果存在依赖，系统会指示哪些是依赖。
+			rpm -e centos-indexhtml
+			rpm -e lynx
+			rpm -e centos-indexhtml
+	Ⅲ	查找包依赖
+		在安装包之前了解包的依赖关系很有帮助。可以通过以下方式在基于 Red Hat Enterprise Linux 的系统上找到它们：
+			dnf deplist lynx
+4、从源码安装软件
+	从源码安装软件是最灵活的软件安装方法。从源代码安装允许您根据您的特定需求自定义安装。可以更改安装路径、启用功能、禁用功能，并对应用程序可用的每个可能的配置选项进行细微调整。
+	从源代码安装有一些缺点。 主要缺点是必须满足所安装软件的依赖性。另一个缺点是必须在系统上安装全套开发工具，这会消耗大量磁盘空间。另一个缺点是，升级到从源码安装的软件的新版本与安装原始版本一样困难且耗时。
+	如果以前的版本没有完全覆盖或删除，可能会遇到很难解决的版本冲突。
+	Ⅰ	前提：构建开发环境
+		在从源代码安装任何应用程序之前，需要通过安装代码编译器和支持软件来设置开发环境。最简单的方法是从 Linux 供应商的存储库安装一组软件包。
+		对于基于 Red Hat Enterprise Linux 的系统，使用 groupinstall 选项并将“Development Tools”标识为安装目标组是最佳选择。 不幸的是，这个组选择安装了许多不必要的且可能不安全的软件包，用于在命令行编译源代码，例如图形工具列表。
+		因此，通常需要建立一个专门用于软件开发的特定系统。 要创建软件开发系统，请使用以下命令：
+			dnf grounpinstall "Development Tools"
+	Ⅱ	下载、解压和安装软件
+			$ wget https://invisible-mirror.net/archives/lynx/tarballs/lynx2.8.9rel.1.tar.gz
+			$ tar zxvf lynx2.8.9rel.1.tar.gz
+			$ cd lynx2.8.9rel.1
+		在运行 configure 前，建议查看 README 文件。该文件包含有关源代码和安装说明的有价值的说明和信息。README 文件通常指描述安装选项的安装文件。
+		如果满足所有依赖关系，配置检查将不会出现错误，创建 makefile，然后返回 shell 提示符。此过程可能需要几分钟才能完成：
+			./configure
+		当遇到错误时，配置脚本（configure）会停止，但会保留其位置，以便可以通过再次运行该脚本来满足依赖关系。根据 INSALLATION 文件，现在必须运行 make 命令来编译源代码。
+			make
+		满足配置脚本中失败的依赖关系后，两次编译均成功完成。 要将 Lynx 安装到正确的位置并设置正确的权限，请运行：
+			sudo make install
+		此时，大多数说明建议运行 make clean 以从系统中删除所有目标代码和其他临时文件：
+			make clearn
+		运行此命令是一个偏好问题。
+	Ⅲ	卸载编译安装的软件包
+		如果源代码数存在且原始 makefile 完好无损，则可以非常轻松地卸载软件包，但必须拥有 makefile 才能执行此操作。如果不想在系统上保留每个编译程序的所有源代码树，要备份 makefile 。卸载时，必须位于 makefile 必须位于当前目录中：
+			$ sudo make uninstall
+		如果没有 makefile 则此操作【基于 makefile 进行卸载】会报错。如果提取与以前使用的相同版本的源代码树并且可以记住配置选项，可以重新创建 makefile。
+
+
+Managing Storage
+1、管理Linux存储
+	Ⅰ	Disks
+		磁盘（磁盘驱动器）是称为硬盘驱动器或硬盘驱动器 (HDD) 的设备，但磁盘也可以指固态驱动器 (SSD) 和 USB 拇指驱动器。 系统管理员使用内部连接、USB 连接或网络技术（例如以太网或光纤布线）使整个磁盘可供 Linux 系统使用。 
+		在Linux系统上访问磁盘之前，系统管理员必须将磁盘挂载到目录中。如，要挂载系统标识 /dev/sdd 的新磁盘，系统管理员会创建一个新目录（如，/software），并将整个磁盘挂载到该目录或挂载点上：
+			$ sudo mount /dev/sdd1 /software
+		一旦管理员通过分区并在其上建立文件系统来准备磁盘，用户就可以访问可供他们使用的空间。
+	Ⅱ	文件系统
+		文件系统是一种组织结构，允许操作系统进行文件存储和检索。文件系统是操作系统用来跟踪磁盘或分区上的文件的数据结构。这就是文件在磁盘上的组织方式。文件系统是存储文件的分区或整个磁盘。
+		现代 Linux 系统为管理员提供了广泛的文件系统选择，尽管许多系统管理员在创建新分区时坚持使用 ZFS、XFS 或 ext4。 还有许多其他文件系统可满足特定需求和应用程序。
+	Ⅲ	挂载和挂载点
+		只有 root 用户 或具有sudo权限的用户才能挂载文件系统。在目录上挂载文件系统大致类似于在Windows中为磁盘分配驱动器号。Linux使用目录而不是驱动器号，这些目录称为挂载点。
+		Linux提供了一个通用挂载点【/mnt】，可以临时挂载磁盘。不应将/mnt目录用作永久挂载点【因为其他系统管理员可能会在其上挂载其他文件系统，从而隐藏原始内容】。
+		挂载点不必是根目录之外的目录。它们可以是子目录。如：
+			mount /dev/sdd1 /opt/software
+		》注意：挂载点（目录）在挂载一个磁盘或文件系统前必须存在。
+		挂载点目录没有什么特别的。 它与文件系统上的任何其他目录相同。创建一个新目录，设置其权限，并将文件系统或磁盘挂载到其上。
+		》注意：不要将文件系统或磁盘挂载到已存在的系统目录【如，/tmp，/var，/etc等】上。这样会导致不稳定的系统行为并可能导致灾难性故障。
+		要使磁盘在引导时自动挂载，必须在 /etc/fstab 文件中创建一个条目，其中包含新磁盘或文件系统以及挂载点。如：
+			UUID=324ddbc2-353b-4221-a80e-49ec356678dc /opt/software xfs defaults 0 0
+	Ⅳ	物理卷【PV】和逻辑卷【LV】
+		当系统管理员谈到物理卷和逻辑卷时，他们指的是逻辑卷管理 (LVM)。物理卷是由逻辑卷管理的分区或磁盘。物理卷看起来与磁盘分区完全相同。
+		卷组【VG】包含物理卷【PV】。一个逻辑卷【LV】等同于磁盘上的分区，但逻辑卷是从卷组中创建出来的。逻辑卷包含已命名的文件系统，这些名称可以是描述性的。
+		考虑逻辑卷的另一种方式是，卷组类似于磁盘，逻辑卷类似于磁盘分区。
+		将物理卷抽象为逻辑卷的优点是，可以灵活地跨多个磁盘来创建大型卷组，并且可以动态调整逻辑卷的大小（缩小和增长），而无需使系统脱机。
+	Ⅴ	检查空间
+		系统管理员应密切关注磁盘空间的使用情况。可以使用 df（disk free）命令快速检查磁盘空间，如：
+			df -h
+		df 命令用于查看已挂载的文件系统上有多少可用的空间。
+		du（disk usage）命令对于检查各个目录非常方便，并提供了消耗空间的详细信息。如：
+			dh -h /var/log
+	Ⅵ	交换空间【swap space】
+		交换空间是一种特殊类型的Linux磁盘分区，它将系统内存扩展到物理随机存取内存（RAM）的限制之外。系统的内核使用交换空间将不活动的程序从内存写入磁盘，从而为活动的程序释放内存。
+		如果用户或进程激活这些交换的程序，系统会将它们从磁盘写回内存。
+		扩大交换空间并不能解决内存问题。如果系统有内存限制，一种可接受的解决方案是添加更多物理RAM，而不是增加交换空间或添加另一个交换分区。系统过度使用交换空间会产生一种称为抖动【thrashing】的情况。
+		当运行的程序过多、交换分区太小或系统没有足够的物理RAM来支持其进程时，就会发生系统颠簸【thrashing】。
+	Ⅶ	基于RAM的临时空间（ramfs he tmpfs）
+		ramfs 和 tmpfs 是文件存在于内存中而不写入磁盘的文件系统。tmpfs 系统是较新且首选的基于RAM的临时文件系统，并且 tmpfs 是所有当代Linux发行版的默认设置。
+		从ramfs过度到tmpfs的原因之一是ramfs允许自己填充容量。tmpfs 具有限制检查以防止达到其最大容量。 tmpfs 添加了将文件写入可用交换空间的功能，以节省资源。
+		显示系统的 tmpfs 挂载信息：
+			# mount | grep tmpfs
+			devtmpfs on /dev type devtmpfs (rw,nosuid,seclabel,size=4096k,nr_inodes=457716,mode=755,inode64)
+			tmpfs on /dev/shm type tmpfs (rw,nosuid,nodev,seclabel,inode64)
+			tmpfs on /run type tmpfs (rw,nosuid,nodev,seclabel,size=740824k,nr_inodes=819200,mode=755,inode64)
+			tmpfs on /run/user/1000 type tmpfs (rw,nosuid,nodev,relatime,seclabel,size=370408k,nr_inodes=92602,mode=700,uid=1000,gid=1000,inode64)
+			tmpfs on /run/user/0 type tmpfs (rw,nosuid,nodev,relatime,seclabel,size=370408k,nr_inodes=92602,mode=700,inode64)
+		tmpfs 的目的是将临时文件和缓存写入内存而不是磁盘，因为 RAM 和磁盘之间的速度差异。 RAM 比最快的 SSD 快很多倍。 tmpfs 的缺点是，如果重新启动或卸载 tmpfs，存储在其中的数据就会丢失。 
+		程序、进程和用户都可以写入这个临时空间。 与基于磁盘的文件系统类似，当来自任何来源的文件填满分配的空间时，都会出现“设备上没有剩余空间”的警告。
+2、添加新的磁盘到系统
+	Ⅰ	安装磁盘
+		对于具有热拔插磁盘接口的物理系统，可以简单地连接硬盘驱动器而无需关闭其电源。如果系统没有热插拔接口，在添加新磁盘之前将其关闭。物理添加磁盘后，打开系统电源（如果需要）并登录进行设置。
+		对于使用虚拟机 (VM) 的用户，请关闭 VM，添加新磁盘，然后重新启动它。 从那时起，物理系统和虚拟系统的过程都是相同的。
+	Ⅱ	准备磁盘以供使用
+		必须首先确定新磁盘的设备名称。系统自动分配设备名称。使用 fdisk 命令显示所有连接的磁盘和分区。如：
+			# fdisk -l
+			Disk /dev/sda：20 GiB，21474836480 字节，41943040 个扇区
+			磁盘型号：VMware Virtual S
+			单元：扇区 / 1 * 512 = 512 字节
+			扇区大小(逻辑/物理)：512 字节 / 512 字节
+			I/O 大小(最小/最佳)：512 字节 / 512 字节
+			磁盘标签类型：dos
+			磁盘标识符：0xee85ffa1
+			
+			设备       启动    起点     末尾     扇区 大小 Id 类型
+			/dev/sda1  *       2048  2099199  2097152   1G 83 Linux
+			/dev/sda2       2099200 41943039 39843840  19G 8e Linux LVM
+			
+			
+			Disk /dev/mapper/cs-root：17 GiB，18249416704 字节，35643392 个扇区
+			单元：扇区 / 1 * 512 = 512 字节
+			扇区大小(逻辑/物理)：512 字节 / 512 字节
+			I/O 大小(最小/最佳)：512 字节 / 512 字节
+			
+			
+			Disk /dev/mapper/cs-swap：2 GiB，2147483648 字节，4194304 个扇区
+			单元：扇区 / 1 * 512 = 512 字节
+			扇区大小(逻辑/物理)：512 字节 / 512 字节
+			I/O 大小(最小/最佳)：512 字节 / 512 字节
+		确定了磁盘的设备名称后，可以开始使用 fdisk 命令对其进行初始化：
+			# fdisk /dev/sdb
+		通过 fdisk 建立分区后，必须创建文件系统。以下命令使用 XFS 格式化 /dev/sdb1 分区：
+			# mkfs.xfs /dev/sdb1
+		通过以下命令可以显示所有块设备和文件系统：
+			# lsblk -f
+			NAME        FSTYPE      FSVER            LABEL                         UUID                                   FSAVAIL FSUSE% MOUNTPOINTS
+			sda                                                                                                                          
+			├─sda1      xfs                                                        cefa5978-d61c-46ff-8c46-da07884133eb    757.8M    21% /boot
+			└─sda2      LVM2_member LVM2 001                                       RxkQml-RRIM-YEtJ-Y5vr-S6Z7-GZyq-YMclHO                
+			  ├─cs-root xfs                                                        223f9a2f-50c9-4514-b079-c587b9711290      6.2G    22% /
+			  └─cs-swap swap        1                                              f6aeb2bc-cc00-4744-a6c1-2ac319394111                  [SWAP]
+			sdb                                                                                                                          
+			└─sdb1                                                                                                                       
+			sr0         iso9660                      CDROM                         2023-12-13-21-32-21-00                                
+			sr1         iso9660     Joliet Extension CentOS-Stream-9-BaseOS-x86_64 2023-08-14-03-57-29-00
+		lsblk 命令还显示设备的通用唯一标识符（UUID），这是磁盘准备过程的最后一步【安装文件系统】所需的。还可以通过 blkid 命令显示设备的UUID，如：
+			# blkid /dev/sdb1
+		接着，创建一个要在其中安装新分区的目录。如：
+			# mkdir /opt/software
+			# mount /dev/sdb1 /opt/software
+		使用 不带任何选项的 mount 命令检查前面的 mount 命令是否正常工作：
+			# mount | grep sdb1
+		要“永久【permanent】”挂载（开机自动挂载），将 挂载 添加到 /etc/fstab 中。如：
+			UUID=3cd1802f-bc02-49ec-8b10-8d79e7d2d890 /opt/software xfs defaults 0 0
+	Ⅲ	实现逻辑卷【LV】
+		逻辑卷为分配磁盘空间提供了很大的灵活性。调整活动分区大小的功能是一项重要功能【在分区中添加或删除磁盘空间不需要任何系统停机】。
+		在调整逻辑卷大小时，仍然应该安排一个维护时段【在此过程中仍然有可能出现问题】。如果犯了错误，可能会丢失数据或可能必须重建整个逻辑卷。灾难虽然不太可能发生，但也有可能发生。
+		调整大小并不是逻辑卷唯一值得注意的功能。逻辑卷可以跨磁盘，这意味着可以从多个磁盘创建非常大的逻辑卷。
+		之前，管理员不愿意创建跨多个磁盘的卷，因为机械键盘驱动器很容易出现故障。但使用 SSD 就违背了“不跨越【don't span】”的规则。SSD也会出现故障，但它们的使用寿命可可靠性使得在必要时进行跨接变得更加合理。
+		可以将当前的磁盘转换为逻辑卷，但在此过程中将丢失所有数据。
+		》创建逻辑卷【LV】
+			要检查系统中是否有可用（未使用）的磁盘或要转换为逻辑卷的磁盘，使用 lsblk 命令，如：
+				# lsblk
+			首先，必须创建物理卷（PV），它是将在其上构建逻辑卷的基本块设备。使用 pvcreate 命令和设备名称将磁盘初始化为物理卷。如：
+				# pvcreate /dev/sdb
+			要列出所有物理卷，使用 pvs（PV Show）命令，如：
+				# pvs
+				  PV         VG Fmt  Attr PSize  PFree
+				  /dev/sda2  cs lvm2 a--  <9.00g    0 
+				  /dev/sdb      lvm2 ---   5.00g 5.00g
+			使用 pvdisplay 命令查看物理卷的详细信息，如：
+				# pvdisplay /dev/sdb
+				  "/dev/sdb" is a new physical volume of "5.00 GiB"
+				  --- NEW Physical volume ---
+				  PV Name               /dev/sdb
+				  VG Name               
+				  PV Size               5.00 GiB
+				  Allocatable           NO
+				  PE Size               0   
+				  Total PE              0
+				  Free PE               0
+				  Allocated PE          0
+				  PV UUID               RlCHoz-jl2L-d5pa-o73P-Hk3u-zfjx-nfGkvL
+			》注意事项：
+				如果磁盘上的有分区以挂载，使用 pvcreate 创建PV会报错【Can't open /dev/sdb exclusively. Mounted filesystem?】。在创建PV前要先卸载。
+			第二步是使用 vgcreate 命令从物理卷创建卷组（VG）。为VG命名，如：
+				# vgcreate vgsw /dev/sdb
+				  Volume group "vgsw" successfully created
+			使用 vgs 命令查看卷组。如：
+				# vgs
+				  VG   #PV #LV #SN Attr   VSize  VFree 
+				  cs     1   2   0 wz--n- <9.00g     0 
+				  vgsw   1   0   0 wz--n- <5.00g <5.00g
+			使用 vgdisplay 查看卷组的详细信息，如：
+				# vgdisplay vgsw
+				  --- Volume group ---
+				  VG Name               vgsw
+				  System ID             
+				  Format                lvm2
+				  Metadata Areas        1
+				  Metadata Sequence No  1
+				  VG Access             read/write
+				  VG Status             resizable
+				  MAX LV                0
+				  Cur LV                0
+				  Open LV               0
+				  Max PV                0
+				  Cur PV                1
+				  Act PV                1
+				  VG Size               <5.00 GiB
+				  PE Size               4.00 MiB
+				  Total PE              1279
+				  Alloc PE / Size       0 / 0   
+				  Free  PE / Size       1279 / <5.00 GiB
+				  VG UUID               BWDAXz-l1rj-fNOP-Z112-EZf7-ohzm-UsUZHW
+			使用 lvcreate 命令创建逻辑卷，lvcreate 命令的一般语法如下：
+				lvcreate -L size -n lvname vg
+			必须通过分别添加尾部 G 或 M 来提供以 GB 或 MB 为单位的大小参数。lvname 是要用于此逻辑卷的名称，并且必须提供要从中创建逻辑卷的卷组名称，如：
+				# lvcreate -L 1G -n software-lv vgsw
+				WARNING: xfs signature detected on /dev/vgsw/software-lv at offset 0. Wipe it? [y/n]: y
+				  Wiping xfs signature on /dev/vgsw/software-lv.
+				  Logical volume "software-lv" created.
+			》注意：
+				这里显示该磁盘或分区之前已经持有 xfs 签名，这意味着它不是一个新的磁盘或分区，而是回收的磁盘或分区。使用以前使用过的磁盘没有问题，但要意识到在此过程中其上的所有信息都将被覆盖且无法恢复。
+			使用 lvs 和 lvdisplay 命令显示逻辑卷的详细信息，如：
+				# lvs
+				  LV          VG   Attr       LSize  Pool Origin Data%  Meta%  Move Log Cpy%Sync Convert
+				  root        cs   -wi-ao---- <8.00g                                                    
+				  swap        cs   -wi-ao----  1.00g                                                    
+				  software-lv vgsw -wi-a-----  1.00g
+
+				# lvdisplay /dev/vgsw/software-lv
+				  --- Logical volume ---
+				  LV Path                /dev/vgsw/software-lv
+				  LV Name                software-lv
+				  VG Name                vgsw
+				  LV UUID                mNCCTe-4wmz-TiOz-lwnM-d0Gh-hls8-dsnNVc
+				  LV Write Access        read/write
+				  LV Creation host, time localhost.localdomain, 2024-01-01 21:29:26 +0800
+				  LV Status              available
+				  # open                 0
+				  LV Size                1.00 GiB
+				  Current LE             256
+				  Segments               1
+				  Allocation             inherit
+				  Read ahead sectors     auto
+				  - currently set to     256
+				  Block device           253:2
+			在通过逻辑卷名过滤逻辑卷设备必须使用完整路径【/dev/vgsw/software-lv】，如：
+				# lvs /dev/vgsw/software-lv
+				  LV          VG   Attr       LSize Pool Origin Data%  Meta%  Move Log Cpy%Sync Convert
+				  software-lv vgsw -wi-a----- 1.00g
+			此过程的第四步是在逻辑卷上创建文件系统。可以使用与任何分区相同的命令来执行此任务，如：
+				# mkfs.xfs /dev/vgsw/software-lv
+				meta-data=/dev/vgsw/software-lv  isize=512    agcount=4, agsize=65536 blks
+				         =                       sectsz=512   attr=2, projid32bit=1
+				         =                       crc=1        finobt=1, sparse=1, rmapbt=0
+				         =                       reflink=1    bigtime=1 inobtcount=1 nrext64=0
+				data     =                       bsize=4096   blocks=262144, imaxpct=25
+				         =                       sunit=0      swidth=0 blks
+				naming   =version 2              bsize=4096   ascii-ci=0, ftype=1
+				log      =internal log           bsize=4096   blocks=16384, version=2
+				         =                       sectsz=512   sunit=0 blks, lazy-count=1
+				realtime =none                   extsz=4096   blocks=0, rtextents=0
+			在逻辑卷上创建文件系统后，就可进行挂载使用了。如：
+				# mount /dev/vgsw/software-lv /sw
+			可以将挂载项添加到 /etc/fstab 实现开机自动挂载。如：
+				/dev/vgsw/software-lv /sw xfs defaults 0 0
+			》注意：
+				不要使用 UUID 在 /etc/fstab 中定义逻辑卷，应使用设备名。
+		》扩展逻辑卷
+			要扩展逻辑卷，可以使用如下常用命令之一：
+				lvextend -L +size(M or G) lvname
+				lvextend -l +100%FREE lvname
+			如，使用 -l（extents）选项消耗【consume】设备上剩余的可用空间：
+				# df -h /sw
+				文件系统                       容量  已用  可用 已用% 挂载点
+				/dev/mapper/vgsw-software--lv  960M   39M  922M    5% /sw
+
+				# lvextend -l +100%FREE /dev/vgsw/software-lv
+				  Size of logical volume vgsw/software-lv changed from 1.00 GiB (256 extents) to <5.00 GiB (1279 extents).
+				  Logical volume vgsw/software-lv successfully resized.
+
+				# df -h /sw
+				文件系统                       容量  已用  可用 已用% 挂载点
+				/dev/mapper/vgsw-software--lv  960M   39M  922M    5% /sw
+			现在已经扩展了逻辑卷，但文件系统没有。使用 xfs_growfs 命令调整文件系统的大小。通过不使用 -D size 指定大小参数【默认，xfs_growfs 会将文件系统扩展到其最大值】：
+				# xfs_growfs /dev/vgsw/software-lv 
+				meta-data=/dev/mapper/vgsw-software--lv isize=512    agcount=4, agsize=65536 blks
+				         =                       sectsz=512   attr=2, projid32bit=1
+				         =                       crc=1        finobt=1, sparse=1, rmapbt=0
+				         =                       reflink=1    bigtime=1 inobtcount=1 nrext64=0
+				data     =                       bsize=4096   blocks=262144, imaxpct=25
+				         =                       sunit=0      swidth=0 blks
+				naming   =version 2              bsize=4096   ascii-ci=0, ftype=1
+				log      =internal log           bsize=4096   blocks=16384, version=2
+				         =                       sectsz=512   sunit=0 blks, lazy-count=1
+				realtime =none                   extsz=4096   blocks=0, rtextents=0
+				data blocks changed from 262144 to 1309696
+
+				# df -h /sw
+				文件系统                       容量  已用  可用 已用% 挂载点
+				/dev/mapper/vgsw-software--lv  5.0G   69M  4.9G    2% /sw
+			》注意	无法缩小【shrink】XFS 卷。
+3、Decommissioning and Disk Disposal【退役和磁盘处置】
+	退役包括在处置之前擦除或销毁磁盘。不同公司的退役流程有所不同，但通常遵循以下步骤：
+		①	Notification【通知】
+		②	"Scream" test【“尖叫”测试】
+		③	Power down【关闭电源】
+		④	Disk wiping【磁盘擦除】
+		⑤	Unracking【拆架】
+		⑥	Palletizing【码垛】
+		⑦	Disposal【处理】
+	Ⅰ	Notification
+		利益相关者、系统管理员、网络管理员、存储管理员和管理层都会收到系统列表的多个退役通知。 大公司一般每周都会发送一次列表，持续三到四个星期（实际时间因公司而异，是政策问题）。 
+		这些通知使利益相关者和其他人有机会通过电子邮件控制系统或防止其退役，然后在治理会议上进行讨论。 如果没有人代表任何列出的系统发言，该过程将进入“尖叫”测试阶段。
+	Ⅱ	Scream test
+		所谓的“尖叫”测试是为期两周或更长的时间，系统管理员或数据中心工作人员将给定系统从网络上拔下，但不会关闭列出的系统。 计划是，在此期间，如果有人尖叫系统停机，它将重新插入网络，并且其操作将像以前一样继续。 
+		下一次治理会议将从退役列表中删除该系统。
+	Ⅲ	Power down
+		退役过程的下一个里程碑是断电阶段，该阶段持续两周或更长时间。 系统管理员关闭所有列出的系统。 在此期间，利益相关方有第二次机会认领系统或通知治理委员会系统需要继续运行。
+	Ⅳ	Disk Wiping
+		经过几周的通知和等待，治理委员会最终确定了该列表并将其提交给系统管理员进行磁盘擦除。 系统管理员启动每个系统并使用磁盘擦除实用程序覆盖每个本地磁盘。 
+		此过程不包括利用或共享存储，例如存储区域网络 (SAN)、网络附加存储 (NAS) 或非本地磁盘存储。 此过程可确保系统的本地存储上不会留下任何数据。
+	Ⅴ	Unracking and Palletizing
+		一旦系统的磁盘被擦除，该列表就会发送给数据中心人员进行拆架。 技术人员将系统从数据中心机架上卸下，并将其放置到运输托盘上。 一旦托盘装满，技术人员就会给它贴上标签，然后进入处理队列。
+	Ⅵ	Disposal
+		处置过程可能包括招标，公司批量购买托盘系统以进行销售或重新部署。 有时，系统会被送到回收设施，技术人员在那里拆除磁盘、CPU、内存和其他可回收组件，以进行单独或批量转售。 
+		系统处置也意味着整个系统通过压碎或切碎的方式进行处置，并作为可回收材料出售。
+	
+
+Maintaining System Health
+	维护系统健康是一个广泛的主题，包括预防性维护、内务管理、修补、安全任务、用户维护以及监控和缓解各种类型的蔓延。维护系统的健康是一项主动任务，而不是被动任务。
+	监控可以提供帮助。自动定期清理某些区域可能会有所帮助。自动更新会有所帮助，但必须主动观察日志、检查空间和蔓延情况，并处理用户维护任务。
+1、保持系统整洁
+	Ⅰ	删除 /tmp 目录
+		/tmp 是共享目录。它与所有用户、应用程序和系统进程共享。 任何人都可以写入此目录，这对管理员来说是不利的，因为无限制地访问系统目录可能会产生致命的后果。
+		如果原始管理员没有将 /tmp 目录创建为可访问有限空间的单独文件系统，则用户或应用程序可能会填满所有空间。因此 /tmp 目录永远不应与 / 属于同一分区。
+		从系统管理员的角度来看，/tmp 目录很棘手，因为它对用户、应用程序或系统没有限制。 因为任何用户都可以写入它，所以他们可能希望它有额外的可用空间，可以存储下载和其他文件。 
+		为了使该目录成为不太理想的文件存储位置，应该创建一个 cron 作业，在备份后每晚运行，以删除任何非系统文件。
+		在许多企业中，自动化脚本每天晚上都会从 /tmp 目录中删除用户创建的文件，并且大多数会从备份中排除 /tmp 目录。
+		如果不想创建单独的文件系统并将其挂载在 /tmp 上，则解决 /tmp 困境的方法是启用 tmp.mount 。该服务创建一个临时文件系统（tmpfs）并将其挂载为 /tmp 。其特点之一是它是易失性存储（RAM），填满它不会导致系统出现稳定性问题。
+		启用 tmp.mount 服务的步骤如下：
+			①	检查 /tmp 目录挂载点，确认是否需要配置 tmp.mount 【默认 /tmp 是 / 的一个子目录】
+				# df -h /tmp
+				文件系统             容量  已用  可用 已用% 挂载点
+				/dev/mapper/cs-root  8.0G  1.8G  6.3G   22% /
+			②	启用 tmp.mount，并开启【这样 /tmp 不再是 / 的子目录】
+				# systemctl enable tmp.mount
+				# systemctl start tmp.mount
+				# df -h /tmp
+				文件系统        容量  已用  可用 已用% 挂载点
+				tmpfs           460M     0  460M    0% /tmp
+		启用 tmp.mount 会使此配置持久化，这意味着它是永久性更改，并且将在每次系统启动时自动创建。
+	Ⅱ	使 /home 适用于每个用户
+		/home 是一个共享目录【除了root用户外，它包含所有用户的家目录】。在 /home 目录与 / 目录位于同一文件系统的系统上，用户可能会填充 / 并导致系统问题，这与填充 /tmp 非常相似。
+		由于 /home 中包含的文件的性质，无法为其创建和挂载易失性文件系统。/home 目录必须是永久挂载的文件系统，最好不是 / 的一部分。如果它是 / 的一部分，有两种方法可以纠正它：
+			①	LVM 	【缩小现有LVM文件系统 创建一个分区和文件系统 将文件系统挂载到 /home】
+			②	新磁盘	【安装新磁盘 创建新分区 将新分区挂载为 /home】
+				创建或安装新磁盘
+				在磁盘上创建新分区
+				在新分区上创建文件系统
+				将新分区挂载到/mnt
+				将/home的所有文件复制或移动到/mnt
+				从/home中删除所有文件
+				从/mnt卸载所有新分区
+				挂载新分区到/home
+				将挂载条目添加到 /etc/fstab ，实现开机自动挂载
+2、整理共享目录
+	保持共享目录整洁是很困难的。这可能是不可能的，可以使用系统工具和一些规划来解决这个问题。
+	Ⅰ	使用 fdupes 删除重复文件
+		fdupes 是一种流行的重复数据删除实用程序。fdupes 在给定的一组目录中查找重复的文件。fdupes 在给定路径中搜索重复文件。通过比较文件大小和 MD5 签名，然后逐字节比较来找到此类文件。
+			# dnf provides fdupes
+			上次元数据过期检查：1:57:30 前，执行于 2024年01月02日 星期二 02时11分56秒。
+			fdupes-1:2.2.1-1.el9.x86_64 : Finds duplicate files in a given set of directories
+			仓库        ：epel
+			匹配来源：
+			提供    : fdupes = 1:2.2.1-1.el9
+		当在目录中使用 fdupes 时，可以只查看重复项、删除重复项（不推荐），或删除重复项但提供指向其中一个文件的软连接（推荐）。
+		》fdupes 选项说明：
+			-r			递归【检查指定目录和所有其子目录】
+			-S			报告文件大小
+			-m			报告找到的任意重复项
+			-L			用硬链接替换重复文件。只有每组重复项中第一个找到的文件保持不变。
+			-d			选择性删除选项【提示选择要保留的文件】。
+	Ⅱ	使用配额【quotas】解决 /home 文件蔓延问题
+		一些系统管理员和用户发现使用配额是处理文件蔓延的严酷解决方案。它是一个很好的解决方案，在各种情况下都能很好地工作，可以帮助处理长期使用超过其公平份额的磁盘空间的用户。
+		可以在任何目录上实施配额，但肯定要考虑共享目录和 /home 。
+		安装 quota ：
+			dnf install -y quota
+		要使用配额系统，需要有一个方便且已安装的 xfs 文件系统。在 /etc/fstab 中为这个 xfs 文件系统创建条目【强制配额】，如：
+			/dev/sdb1 /home xfs defaults,usrquota,grpquota 0 0
+		在 /home 中创建两个空文件：quota.group 和 quota.user 。这两个文件必须存在于配置配额的任何目录中，供配额系统使用：
+			touch /home/quota.group /home/quota.user
+		使用 quotaon 命令启用 quota：
+			# quotaon /home
+			quotaon: Enforcing group quota already on /dev/sdb1
+			quotaon: Enforcing user quota already on /dev/sdb1
+			quotaon: Enable XFS project quota accounting during mount
+		限制设置如，软限制为50MB，硬限制为80MB【当超过软限制时，会受到警告，但配额系统会阻止超过硬限制】。还可以限制用户可以使用的inode的数量，inode也有硬限制和软限制。
+			# xfs_quota -x -c 'limit -u bsoft=50m bhard=80m isoft=60 ihard=80 miggi' /test_quota
+		查看配额设置：
+			# xfs_quota -x -c "report -h" /home
+			User quota on /home (/dev/sdb1)
+			                        Blocks              
+			User ID      Used   Soft   Hard Warn/Grace   
+			---------- --------------------------------- 
+			root            0      0      0  00 [------]
+			miggi         20K    50M    80M  00 [------]
+			
+			Group quota on /home (/dev/sdb1)
+			                        Blocks              
+			Group ID     Used   Soft   Hard Warn/Grace   
+			---------- --------------------------------- 
+			root            0      0      0  00 [------]
+			miggi         20K      0      0  00 [------]
+		测试：
+			# su - miggi
+			$ head -c 51MB /dev/urandom > fillit1.txt
+			$ head -c 51MB /dev/urandom > fillit2.txt
+			head: 写入 'standard output' 出错: 超出磁盘限额
+			
+			$ ls -lh
+			总用量 80M
+			-rw-r--r--. 1 miggi miggi 49M  1月  3 03:50 fillit1.txt
+			-rw-r--r--. 1 miggi miggi 32M  1月  3 03:50 fillit2.txt
+		当用户【miggi】达到硬限制时，系统会截断他们尝试创建的文件【fillit2.txt】。（如果没有为用户设置配额，他们将拥有两个完整的文件）。
+		配额可防止用户在文件系统或目录上消耗超过给定量的空间。 不过，这些措施应该只针对违反公司政策或在公司系统上过度存储个人文件的用户。可以通过将所有限制设置为 0 轻松地从用户帐户中删除配额限制：
+			# xfs_quota -x -c "limit -u bsoft=0 bhard=0 isoft=0 ihard=0 miggi" /home
+3、修补系统，打造健康系统
+	修补是一项重要任务，但也许用词不当：使用开发人员提供的修复更新系统实用程序、守护程序和应用程序。软件修补了特定问题。
+	修补并不总是以安全为重点。 通常，补丁会修复稳定性问题、堵塞内存泄漏或修复损坏的功能。请记住，修补 Linux 系统很少意味着必须重新启动，但如果更新服务，将需要重新启动该服务，除非修补过程会处理好这一问题。
+	如果修补过程重新启动服务，屏幕上会出现一条消息，通知重新启动。为了安全起见，在重大补丁事件后重新启动，以确保系统及其服务重新启动。重大补丁事件包括多个修复，通常还包括内核更新。 
+	如果处于维护时段内并且已更新多项服务、内核或其他关键系统软件，建议重新启动系统。
+	一些系统管理员通过设置 cron 作业来定期检查和安装补丁来自动进行修补。 这种情况是可行的，但应该有一两个手动更新的测试系统，以查看要更新的内容、系统对这些更新的反应以及系统在重新启动后如何响应。
+	Ⅰ	基于 Red Hat 系统的修补
+		要在基于 Red Hat Enterprise Linux 的系统上启动补丁，请使用 yum 或 dnf。如：
+			# dnf update
+		如果首先在测试系统上安装并验证了更新，那么通常可以在生产系统上进行更新。安装未经测试系统验证的补丁可能会导致稳定性问题或应用程序/库冲突，特别是当运行某些程序的旧版本时。
+4、保护系统
+	在应用安全措施时，并非所有系统都能得到平等对待。如，DMZ（面向互联网）系统、数据库系统、Web服务器、应用程序服务器和文件存储系统都需要不同的安全设置。很少可以应用覆盖每种类型系统的单一安全策略。
+	一些通用安全措施适用于每个系统，无论其功能如何，建立一个单一的通用安全计划是不现实的。必须将安全配置应用于每种系统类型，以重点关注特定漏洞。
+		Linux服务安全指南
+		目的/工作量						示例									安全措施
+		所有服务器						杂项服务						SSH，/etc/hosts.allow 和 /etc/hosts.deny 限制，防火墙，SELinux
+		Web服务器						Apache，NGINX，IHS，其他		TLS，证书（certificates），HTTPS
+		数据库服务器					MySQL，PostgreSQL，其他			通过SSH建立隧道（tunnel），限制与localhost的连接
+		文件服务器						Samba，NFS，SSH					Samba的Active Directory集成，双因素身份验证
+		应用服务器						Tomcat，WebSphere，其他			HTTPS，TLS，证书（certificates）
+		Mail服务器						SMTP，IMAP，POP-3协议			使用安全的协议和邮件服务
+	无论出于什么目的，都应该在每个系统上实现某些安全功能，除非有一些与供应商相关的原因不应该实现。应该锁定每个系统并尽可能限制，同时维护用户的功能和可访问性。
+5、维护用户和组账号
+	用户帐户维护不仅仅是添加和删除帐户。它还包括制定帐户命名约定、创建政策来设定标准，规定在删除帐户之前禁用帐户的时间、用户离开群组或公司后保留用户主目录的时间、退出群组 帐户，以及用户和组 ID 的停用或重用。 
+	所有这些活动都可以防止用户帐户蔓延。以下是账号扩张（sprawl）的示例：
+		①	系统上留下的禁用账号超出了策略限制
+		②	系统上留下的主目录超出了策略限制
+		③	系统上保留的活动、已终止的用户账号
+		④	没有成员的组账号
+		⑤	已禁用或删除的账号还存在于/etc/sudoers
+		⑥	系统上留下的活动临时账号
+		⑦	具有shell或密码的活动服务账号
+	Ⅰ	设置命名约定
+		避免帐户蔓延的最简单方法之一是创建用户帐户命名约定。 命名约定通过设置创建用户帐户的标准来防止蔓延。
+		命名约定的重点是开发一个系统，然后坚持它。 采用命名约定可以防止管理员创建可能与其他帐户重复的随机用户帐户。
+	Ⅱ	创建账号保留策略
+		账号保留策略是一种良好的安全实践和内务管理实践【没有什么比90天内没有人访问过的活动账号更能标记安全扫描了】。一些高度安全的环境将强制每45天更改一次密码，在90天不活动后禁用账号，并删除六个月不活动的账号。
+		这种激进的账号保留策略并不适合所有环境，但它确实可以保护敏感系统的用户，并要求他们维护自己的账号或让他们离开。
+		帐户保留政策应该是书面政策和系统级政策。 系统级策略意味着您必须配置系统范围的设置以锁定和删除非活动帐户。
+		①	更改非活动账号状态
+			要寻求系统解决方案，请审核密码过期后系统禁用账号的天数的默认值，也称为INACTIVE变量：
+				# useradd -D | grep -i inactive
+				INACTIVE=-1
+			-1 表示没有设置默认的非活动值。
+			根据公司的安全策略设置非活动值。如果没有解决此值的安全策略，将其设置为15 天。 一些系统管理员将此值设置为30。此设置的目的是禁用不活动帐户并保护系统安全：
+				# useradd -D -f 15
+			这会将系统范围内的默认非活动值设置为 15 天。 如果用户收到需要更新密码的消息，系统将在 15 天内禁用该帐户。
+			如果用户尝试登录系统但失败，可以检查他们的帐户状态：
+				# passwd -S username
+				# passwd -S miggi
+				miggi LK 2024-01-02 0 99999 7 -1 (密码已被锁定。)
+			解锁账号的方式如下：
+				# passwd -u username
+		②	保护用户账号
+			chage 命令有几个选项，可通过强制定期更改密码、设置最短密码更改持续时间等来进一步保护用户账号。如为用户更改三个参数：非活动天数、密码更改之间的最短天数和密码更改之间的最大天数。
+				# chage -m 1 -M 90 --inactive 15 miggi
+				# chage --list miggi
+				最近一次密码修改时间                                    ：1月 02, 2024
+				密码过期时间                                    ：4月 01, 2024
+				密码失效时间                                    ：4月 16, 2024
+				帐户过期时间                                            ：从不
+				两次改变密码之间相距的最小天数          ：1
+				两次改变密码之间相距的最大天数          ：90
+				在密码过期之前警告的天数        ：7
+			这会将用户的密码设置为每90天过期。如果不更改密码，账号将在更改密码日期15天后被禁用。如果他们在提示时更改密码，则直到一天后才能再次更改密码。
+			使用 chage 命令一次只能更改一个用户。如果在多台服务器上有多个用户，可使用如下脚本：
+				#!/bin/bash
+				egrep ^[^:]+:[^\!*] /etc/shadow | cut -d: -f1 | grep -v root > user-list.txt
+				for user in `more user-list.txt`
+				do
+					chage -m 1 -M 90 --inactive 15 $user
+				done
+	Ⅲ	停用组账号
+		一旦空了，且不活动的组账号仍保留在系统上，这是账号蔓延的常见原因，但很容易补救。groupmems 命令可以谁是特定组的成员，如：
+			# groupmems -g operations -l
+			ajones  bhaas 
+		如果没有组成员，命令显示没有输出。
+		在删除空组前，应该查明该组是否留下了他们拥有的任何文件：
+			# find / -group operations
+		应该将文件传输给其他用户或将所有权更改为root以保护它们，然后删除空组账号：
+			# groupdel operations
+5、监控系统健康状况
+	系统监控并不明确属于无序扩张的范畴，而是维护系统健康的一部分。可以购买数十种商业监控工具，但 sysstat 是 Linux 原生的免费工具。它易于安装，并且在基于红帽的系统上，它可以自我配置并立即开始收集数据。
+	要启用 sysstat 的系统活动报告（System Activity Report——sar）实用程序来开始收集数据，编辑 /etc/default/sysstat 文件并将 ENABLED="false" 改为 ENABLED="true"。然后重启 sysstat 服务。
+	sysstat 软件包包含用于检查性能和格式化系统统计信息的二进制文件。sysstat包中的二进制文件如下：
+		Binary					Name									Description
+		cifsiostat				CIFS 统计					cifsiostat 命令显示有关CIFS文件系统上的读写操作的统计信息
+		iostat					CPU和设备I/O统计			iostat 命令用于通过观察设备活动时间与其平均传输速率的关系来监视系统输入/输出设备负载。
+		mpstat					进程相关统计				mpstat 命令写入每个可用处理器的标准输出活动，处理器 0 是第一个。
+		pidstat					任务统计					pidstat 命令监视当前由Linux内核管理的各个任务
+		sadf					sar 数据格式化				sadf 命令用于显示sar命令创建的数据文件的内容。但与sar不同的是，sadf可以以多种不同的格式（CSV，XML等）写入数据
+		sar						系统活动报告				sar 命令将操作系统中选定的累积活动计数器的内容写入标准输出
+		tapestat				磁带统计					tapestat 命令用于监视连接到系统的磁带驱动器的活动
+	这里的“stat”命令的工作原理类似于 vmstat（不是sysstat的一部分）。vmstat 要求提供快照之间的时间延迟间隔（单位，秒）和快照的特定数量（计数，5是典型值）：
+		vmstat [options] [delay [count]]
+	如（每5秒运行一次，生成5个快照）：
+		vmstat 5 5
+	具有两个快照和5秒延迟的iostat命令如下：
+		iostat 5 2
+	Ⅰ	收集系统活动报告
+		sar 命令在收集、报告和保存系统活动信息方面是全面且通用的。可以像“stat”命令一样使用它，通过提供间隔和计数、使用 -b 选项来显示I/O统计信息，或将两者结合起来以特定间隔显示选择的性能计数器。如：
+			# sar -b
+			# sar -b 5 5
+		sar 命令的默认输出是 CPU 统计。要显示其他统计，必须使用一个转换，如 -b 对应 I/O 数据。
+	Ⅱ	格式化系统活动报告
+		通过显示 sar 数据，可以查看24小时内的快照和性能，但如果希望该数据捕获到特定格式（如CSV或XML）的文件，可使用 sadf 。
+		为了帮助区分 sadf 和 sar 选项，sadf 选项位于命令的前面，然后 sar 选项位于双连字符之后。
+		sadf 使用 -d 选项创建一个逗号分隔的文件（非常适合提取到数据库中），如：
+			# sadf -d
+			# hostname;interval;timestamp;CPU;%user;%nice;%system;%iowait;%steal;%idle
+			localhost.localdomain;615;2024-01-02 16:10:15 UTC;-1;0.01;0.24;1.84;0.61;0.00;97.30
+			localhost.localdomain;600;2024-01-02 16:20:15 UTC;-1;0.01;0.00;0.98;0.01;0.00;99.00
+			localhost.localdomain;600;2024-01-02 16:30:15 UTC;-1;0.01;0.00;1.05;0.01;0.00;98.93
+			localhost.localdomain;600;2024-01-02 16:40:15 UTC;-1;0.01;0.00;0.99;0.01;0.00;98.99
+			localhost.localdomain;600;2024-01-02 16:50:15 UTC;-1;0.02;0.00;1.01;0.01;0.00;98.96
+			localhost.localdomain;600;2024-01-02 17:00:15 UTC;-1;0.01;0.00;0.99;0.01;0.00;98.99
+			localhost.localdomain;600;2024-01-02 17:10:15 UTC;-1;0.02;0.00;1.05;0.07;0.00;98.87
+		系统活动日志驻留在/var/log/sa中，文件名为“sa”，后跟代表月份日期的数字。如（查看该月2号的系统活动日志）：
+			# sadf -d /var/log/sa/sa02 -- -d
+		-- 告诉 sadf ，其后面的选项是 sar 命令选项。如显示网络信息：
+			# sadf -d /var/log/sa/sa02 -- -n DEV
+
 		
+Monitoring Your System
+	监控不是可选的。这是必要的。每个系统管理员都必须保持警惕，监控系统的性能、运行状况和安全性。手动监控系统并执行其他管理任务是不可能的，因此必须依靠自动化软件、特定系统配置和报告系统来更新每个系统的状态。
+1、对CPU、内存和磁盘性能和容量保持警惕
+	Linux 系统中的三个主要监控焦点是 CPU、内存和磁盘性能。
+	Ⅰ	跟踪CPU使用情况
+		CPU通常位于要监控的系统组件列表的顶部（它是系统的动力源）。如果系统的CPU持续运行在80%以上的利用率。在这种情况下，系统可能没有足够的CPU来为操作系统和主机运行的所有应用提供动力。
+		还可以想象，应用程序编码问题或安全漏洞问题会将CPU的利用率置于“红色”区域。
+		有许多工具可帮助您监控和评估 CPU 利用率。 最简单且最容易获得的是 top 和 ps。 这些命令是每个 Linux 发行版上标准构建的一部分。
+		①	top
+			作为系统管理员，可能遇到过 top 或其相关命令之一，例如 atop 或 htop。top 实用程序是大多数 Linux 发行版的标准配置，但必须从发行版的存储库中安装 atop 和 htop 软件包。 
+			top 命令使您可以实时查看系统的“顶级”进程。 默认情况下，top 在视图顶部列出了消耗最多 CPU 的视图。
+			所有用户都可以发出 top 命令并将排序选项从CPU（默认）更改为内存、时间和PID。
+			一些排序选项的键盘快捷键：
+				Key				Sorting
+				Shift+M			%MEM（内存使用率）
+				Shift+P			%CPU（CPU使用率——默认）
+				Shift+S			TIME（运行时间）
+			标准的 top 命令很有用，但对于许多系统管理员来说，显示的信息不足以做出明智的决策。 atop 和 htop 命令在大多数发行版上默认不安装，它们提供了更广泛的视图来了解正在发生的情况。
+		②	atop
+			atop 实用程序是一个高级系统和进程监视器。atop在下部窗格中显示标准的顶级进程，但在上部窗格中提供对CPU、内存、磁盘和网络性能的深入了解。
+			atop 是一个交互式监视器，用于查看Linux系统上的负载。它显示了系统级别上最关键的硬件资源（从性能角度来看）的占用情况，即CPU、内存、磁盘、LVM、交换【swap】使用情况和网络。
+			它还显示哪些进程负责与进程级别的CPU和内存负载有关的指示负载。
+			可以作为普通用户或root用户运行 atop。两种模式的视图相同。尽管如此，在受限视图中，有些操作是无法执行的【如，对不属于用户的进程执行kill】。
+			atop 实用程序对系统管理员很有吸引力，它显示了关键系统参数的重点性能值。这些统计数据非常方便【不必搜索特定于性能的数据或实用可能昂贵的第三方工具来提取信息】。
+		③	htop
+			htop 实用程序是另一个系统性能查看器，它显示与标准 top 实用程序相同的信息，但采用颜色编码，并具有非常方便的命令菜单。
+			htop 实用程序的当前使用模式突出显示（CPU%）。 当前模式是CPU 使用率。 该菜单有助于执行特定命令，而管理员无需记住每个操作的击键。
+		④	ps
+			ps 显示有关正在运行的进程的信息。可以使用命令选项或开关查看自己的进程、所有进程以及不同格式的进程表。
+			要查看用户拥有的所有进程，使用带有 -ux 选项的ps命令：
+				# ps -ux
+			还可以使用 -aux 开关组合按所有者查看所有进程：
+				# ps -aux
+		⑤	glance
+			glance ，另一个 top 程序。它是一个跨平台的监控工具。开发人员重新排列了显示并对其进行了着色，该信息与在htop中看到的信息类似。
+			# dnf provides glances
+			上次元数据过期检查：3:07:34 前，执行于 2024年01月03日 星期三 18时15分53秒。
+			glances-3.3.1-2.el9.noarch : A cross-platform system monitoring tool
+			仓库        ：epel
+			匹配来源：
+			提供    : glances = 3.3.1-2.el9
+
+			按 M 键（glances中的快捷方式不需要Shift）将焦点从CPU%切换为MEM%，按 T 切换到TIME。按 C 切换回 CPU% 。
+			》注意：
+				如果系统受到CPU限制，或怀疑它受到CPU限制，不要使用glances作为主要CPU性能检查（因为它回消耗大约15%的CPU，而不是 top 的3%~5%）。
+			可以在客户端/服务器配置中运行 glances 、将数据导出为多种格式以及更改其显示设置。
+	Ⅱ	探索 sysstat 监控
+		sysstat（系统状态）包是一个本机工具。 换句话说，它是一个预打包的标准监控工具，可以在任何 Linux 发行版上免费使用。
+		sysstat 软件包包含适用于Linux 的 sar、sadf、mpstat、iostat、tapestat、pidstat、cifsiostat工具。
+			①	sar			系统活动报告实用程序
+			②	sadf		系统活动数据格式化程序，它以多种格式（CSV、XML等）显示 sar 收集的数据。
+			③	iostat		输入/输出统计实用程序，显示CPU利用率和磁盘I/O统计信息
+			④	tapestat	显示磁带和磁带驱动统计
+			⑤	mpstat		多处理器统计实用程序，可显示全局和每个处理器的统计信息
+			⑥	pidstat		按进程ID报告Linux进程的统计信息
+			⑦	cifsiostat	CIFS（Samba/SMB）I/O统计工具
+	Ⅲ	报告系统活动
+		sar 实用程序是 sysstat 命令套件中最常用的。系统活动报告工具显示从午夜到当前时间的性能统计数据。默认，sar仅显示当天的指标。
+		可以将 sar 收集的信息以二进制格式保存到文件中。sar 报告的统计信息包括I/O传输速率、分页、进程相关性能、中断、网络活动、内存利用率、交换空间利用率、CPU利用率、内核活动、TTY统计信息等。
+		sysstat 软件包完全支持单处理器和多处理器系统。使用不带选项的 sar 命令显示CPU统计（默认）。
+		可以使用命令选项过滤 sar 结果。如，要显示CPU的统计信息，使用 -u 选项。-u 选项显示的结果与不带选项的 sar 命令相同。添加ALL关键字以包含所有与CPU相关的统计信息：
+			sar -u ALL
+		-B 选项显示换页【paging】统计：
+			sar -B
+		-b 选项报告I/O和传输速率统计信息：
+			sar -b
+	Ⅳ	多种格式显示系统活动数据
+		sadf 命令将 sar 数据发送到不同的输出类型，以便更轻松地将其数据提取到数据库中或将其显示在网页上。如：
+			# sadf -d /var/log/sa/sa02
+		除了将 sadf 与历史数据一起使用之外，还可以将其与当前数据一起使用：
+			# sadf -dh -- -p
+	Ⅴ	使用 iostat 监控系统 I/O 设备加载
+		与其他“stat”命令一样，看到的第一个指标是统计摘要或自系统上次启动以来的摘要指标。 通常，可以多次运行 stat 命令来查看当前统计信息，或使用 -y 选项忽略摘要指标。如：
+			# iostat -d 2
+			# iostat -y -d 2
+		与其他 sysstat 实用程序一样，iostat 有多个选项，可以从手册页中找到这些选项。
+	Ⅵ	收集进程统计
+		使用 mpstat（multiprocessor statistics）使用程序，可以显示系统的多处理器和单处理器统计信息。不带选项的mpstat命令显示所有处理器的摘要。
+		通过指定 -P 选项和处理器编号来查看各个处理器（处理器编号从0开始）。如：
+			# mpstat -P 1
+		还可以使用 ALL 选项查看所有处理器，如：
+			# mpstat -P ALL
+		与其他“stat”命令类似，可以请求以秒为单位的时间间隔和指定的迭代次数进行显示。如，每5秒执行一次mpstat，迭代三次：
+			# mpstat 5 3
+		在繁忙的系统上，这些数字的信息量大得多。可以确定特定处理器是否达到或超过容量，然后有选择地将进程（更改进行的处理器关联性）绑定到其他处理器，以减轻CPU0上的压力。
+	Ⅶ	使用 pidstat 监控Linux任务
+		pidstat 用于监视当前由Linux内核管理的各个任务。命令默认仅在报告中显示活动任务（具有非零统计值的任务）。
+		pidstat 的一个方便用途是检查单个用户的系统使用情况，如：
+			pidstat -d -U miggi
+		如果要追踪消耗过多系统资源的恶意用户或进程，pidstat实用程序具有重要价值。
+	Ⅷ	使用cifsiostat 查看Windows兼容的文件系统统计信息
+		cifsiostat 命令显示有关通用 Internet 文件系统 (CIFS) 或 Samba 文件系统上的读写操作的统计信息。 许多系统管理员将维护 CIFS 与其 Windows 用户兼容。 
+		Windows 用户可以将驱动器号映射到 CIFS 共享，类似于映射到 Windows 系统上的共享文件夹。 使用 CIFS 可以更轻松地维护 Windows 桌面系统和 Linux 服务器之间的某些兼容性。 
+		CIFS 还可能使使用 Windows Server 系统变得不必要，因为许多 Windows 服务可能会使用该协议进行复制。
+		使用 cifsiostat 显示统计信息，首先要确保 cifs 内核模块已加载。
+
+			
+Scripting and Automation
+	系统管理员将力所能及的事情自动化。但无法让一切都自动化。自动化是一件好事，但也有其局限性。有些任务很难自动化，因为它们涉及太多变量。自动化确实会带来一些安全风险，因为自动化需要提升权限的任务会带来安全漏洞，从而导致系统受损。
+	自动化的其他障碍包括定时和时间漂移、系统故障、脚本错误条件和人机交互。
+	每个系统管理员都必须知道如何创建基本的 shell 脚本，并且应该自动执行每一个可能的非特权、重复性任务。
+1、创建脚本
+	如果需要一个脚本来执行特定任务，那么很有可能通过简单的在线搜索找到一个脚本。不必从头开始编写一个。根据需要调整脚本并毫无愧疚地使用它们。其他系统管理员将他们的脚本放在网上供您使用。
+	但是，应该学习脚本编写的基础知识，例如从文件读取、写入文件、grep、管道、重定向、循环以及从脚本内调用其他脚本。不必成为脚本专家，但学习基础知识可以帮助找到所需的内容，并根据自己的情况调整找到的内容。
+	Ⅰ	概述脚本
+		在编写脚本前，概述希望脚本执行的操作【不必创建流程图，但应该列出希望在脚本运行期间发生的步骤】，如（backup_server1.sh）：
+			①	创建 /etc 目录的 tar 文件
+			②	压缩 tar 文件
+			③	将文件传输到目标服务器（archive1）
+		该脚本是一个简单的自上而下的过程，没有决策树或分支。
+	Ⅱ	根据概述编写脚本
+		backup_server1.sh 内容如下：
+			#!/bin/bash
+
+			# Create a tar file of /etc .
+			sudo tar cvf server1_etc.tar /etc
+
+			# Compress the tar file
+			gzip -9 server1_etc.tar
+
+			# Transfer the file to archive1 into the /server1/backups directory
+			scp server1_etc.tar.gz archive1:/server1/backups
+		保存文件，授予其执行权限，然后就可以使用了。 archive1 系统上的 /server1/backups 目录应该可由将备份放入其中的用户执行和写入。
+		为了提高安全性，应该指定备份用户并创建具有仅限于该用户的权限的备份目录。
+		在所有系统上创建备份和恢复 (bur) 用户，并为 bur 用户设置无密码 SSH 密钥文件。 在所有系统上以 bur 用户身份设置用于备份的 cron 作业：
+			0 2 * * * /home/bur/backup_server1.sh
+2、调度任务
+	cron 实用程序安排命令在特定时间运行。它有助于自动化必须在特定时间、多次或管理员不方便的时间执行的重复性任务。
+	cron 是可靠的，它实用计算机的系统始终来执行预定的活动。cron的一个缺陷是，如果自动化任务涉及多个系统并且它们的时间不同步，就会遇到问题。
+	解决方案是引用中央时间服务器。
+	Ⅰ	使用 cron 调度任务
+		cron 的简单“语法”或格式如下：
+			----------------------- 分（0 - 59）
+		    | --------------------- 时（0 - 23）
+			| | ------------------- 日（1 - 31）
+			| | | ----------------- 月（1 - 12）
+			| | | | --------------- 周（0 - 6）（周日到周六，有些系统上7也表示周日）
+			| | | | |
+			* * * * *  command to execute
+		每天每5分钟检查一次文件是否存在，该条目的格式如下：
+			0,5,10,15,20,25,30,35,40,45,50,55 * * * * /path/to/script.sh
+		每周一、周三和周五下午2:00运行，cron计划采用以下格式：
+			0 14 * * 1,3,5 /path/to/script.sh
+		每月15号早上6点执行的cron计划如下：
+			0 6 15 * * /path/to/script.sh
+	Ⅱ	使用网络时间协议防止时间漂移
+		编写在多个系统上运行的脚本的问题之一是同步它们之间的系统时间。
+		假设有一个脚本，从服务器 A 收集文件并将它们复制到服务器 B，复制这些文件后，服务器 B 会检查它们，然后创建一个 tarball 并将它们复制到 NAS 上进行存档。 
+		如果这种情况需要每天按时间顺序发生多次，就会发现服务器系统之间的时间同步是多么重要。
+		在所有系统之间保持时间同步的方法是引用互联网时间服务器以及网络内的时间服务器（以防您遇到互联网连接中断）。
+		安装 ntp 或 chrony 以允许您的系统与外部（互联网）时间服务器同步。
 
 
-	
-	
+Troubleshooting Linux
+1、重振操作系统
+	操作系统问题可以像运行文件系统检查 (fsck) 和修复一些文件一样简单。 它可能像多天的故障排除会话一样复杂，最终会进行完整的系统重新映像。
+	Ⅰ	缓解内核恐慌
+		系统启动时出现内核崩溃的原因有多种。大多数时候，要么是 initramfs 文件损坏，要么是创建了不正确的 initramfs 文件。
+		initramfs 文件是特定于每个内核的，如果最近升级了内核，则 initramfs 可能没有在安装过程中创建，或 initramfs 创建过程进展不顺利。
+		最近的错误补丁也可能导致内核恐慌。其他问题仍可能导致内核恐慌，例如硬件故障，但此处列出的问题是最常见且易于修复的问题。 一个相对简单的过程（接下来讨论）可能会使系统再次可启动，并省去重新安装所有内容的痛苦。
+		显示内核版本：
+			# uname -r
+			5.14.0-352.el9.x86_64
+		运行如下命令从内核重新创建正确的 initramfs：
+			# dracut  /boot/initramfs-5.14.0-352.el9.x86_64.img 5.14.0-352.el9.x86_64
+			dracut: Will not override existing initramfs (/boot/initramfs-5.14.0-352.el9.x86_64.img) without --force
+		文件已存在，可以使用 -f, --force 选项强制覆盖.
+		重启系统，希望可以顺序启动。如果在此修复过程后再次遇到内核崩溃，则可能是硬盘损坏、另一个与启动相关的文件损坏或内核有问题。重试救援过程并安装不同的内核。准备好ISO镜像以供该过程使用。
+		启动到根救援shell【root rescue shell】，挂载ISO镜像，然后安装ISO镜像中提供的内核【根文件系统安装在/mnt/sysimage上，ISO安装在/opt/mnt上】：
+			# cd /opt/mnt/install/repo/packages
+			# rpm -Uvh --root=/mnt/sysimage kernel-5.14.0-352.el9.x86_64
+		使用 ISO 映像中的内核包。 现在，重新启动系统；如果一切顺利，应该拥有一个正常运转的系统。如果没有，应该考虑再次启动到救援环境 - 创建关键文件的备份（如果需要） - 然后重新映像系统。 
+		当然，如果遇到硬件问题（例如磁盘或控制器损坏），此过程也可能会导致内核恐慌。
+	Ⅱ	抓取系统日志
+		抓取系统日志意味着在日志中搜索错误或其他相关的消息。然而，系统管理员大部分时间都生活在 /var/log 中；有时，只能依靠日志文件来排除系统问题。如，使用dmesg过滤日志：
+			# dmesg | grep error
+		这通常会缩小查找操作系统和硬件问题的可能性。如果通过dmesg没有发现任何相关错误，可以使用其他过滤器进一步检查，如——fault，failed，undefined，或unknown。
+			# dmesg | grep failed
+		如果没有发现任何有价值的信息，使用系统的日志文件：
+			# cd /var/log
+			# grep -ir error * > ~/errors.txt
+2、解决软件问题
+	软件故障排除可能很棘手。软件问题的根本原因可能不是软件本身。软件问题的根源可能在于硬件、其他软件、文件损坏或删除、软件依赖问题、网络问题、重复的端口、重复的IP地址以及网络上任何地方的数十种可能的配置错误或系统错误配置问题。
+	软件错误消息不一定能指出解决方案，但它们是第一步。错误代码和日志是故障排除的良好起点。
+	Ⅰ	查看系统日志
+		系统日志是查找错误、失败和成功的一个很好的起点。 是的，成功并不一定是良性的。 想象一下这样的场景：有人破坏了您的网络，使用合法帐户登录系统，成为 root 用户，然后泄露机密数据或加密您的数据。 
+		只有行为方（以欺诈方式访问系统的人）才是不合法的。 系统将这个恶意行为者的每次登录和操作视为正常、合法且成功。 这些行为可能根本不会引起任何警报。
+		系统日志会显示正在发生的情况，因此不要忽视检查是否成功登录。系统日志位于 /var/log 。要查看这些文件，需要root权限。
+		查询日志中的错误【error】或失败【fail】：
+			# grep -i error *.log
+			# grep -i fail *.log
+	Ⅱ	检查应用日志
+		应用程序日志提供了特定的错误或错误代码，可以帮助解决软件问题。这些日志可能位于/var/log，应用的家目录，或其他目录，但始终位于名为 log 或 logs的子目录中。
+	Ⅲ	利用内部应用程序检查
+		一些开发人员在其软件中包含配置检查器和特定工具，以帮助您识别、隔离和解决问题。当面临特定于应用程序的配置问题和故障时，这些实用程序是您的最佳选择。某些配置文件具有相当复杂的语法，并且缺少单个括号或分号可能非常难以隔离。
+		如，检查 Apache HTTP Server 的配置语法【当htpd.conf中的所有配置正确，会显示Syntax OK】：
+			# apachectl configtest
+		如果，配置有问题，会显示具体错误。还会再应用程序启动或重启时检查配置:
+			# apachectl restart
+			# systemctl status httpd.service
+	Ⅳ	管理防火墙和其规则
+		防火墙非常适合缓解入侵者的速度，但也会干扰故障排除。避免在故障排除期间禁用防火墙的诱惑。相反，添加新规则来适应需要执行的操作。可能忘记重启防火墙，这可能会导致灾难性的后果。
+		防火墙并非 100% 万无一失，但它对于减缓潜在入侵者的速度具有价值。花几个小时对新服务进行故障排除，最终可能才意识到是防火墙导致了问题。
+	Ⅴ	移除和重装软件
+		无休止的故障排除通常是对耐心的考验，不建议这样做。对于应该花多长时间来解决软件问题没有固定的标准，但在某些时候，必须确定进一步的故障排除会浪费您的宝贵时间。应该当时备份应用程序的配置文件和数据，然后删除并重新安装它。
+		在重新安装应用程序之前，请确保您已安装最新的可用稳定包或下载最新的稳定源代码。如果使用的是最新版本，请尝试返回到早期的稳定版本。 
+		另外，确保系统已更新并具有适合应用程序的最新兼容工具和实用程序。源代码包中包含的自述文件或安装文本文件通常会列出兼容的编译器版本和其他所需支持软件的版本。
+	Ⅵ	重启系统
+		定期系统重新启动的概念对许多Linux系统管理员来说是陌生的。但，重新启动应该是定期系统维护的一部分。重新启动会刷新硬件和软件配置，但也会通知任何故障或问题。如，服务没有设置开机自启。
+		dmesg 命令会通知最近重新启动时出现的任何问题。可以通过过滤结果来发现硬件和软件问题。
+			# dmesg | grep -i error
+			# dmesg | grep -i fail
+		重新启动系统不应该引起争议。每月热启动（重新启动）和每季度冷启动（关闭/打开电源）是许多企业维护周期的标准部分，修补、安全审核和端口扫描也是如此。
+3、处理硬件故障
+
+
+Securing Your System
+	系统安全是将配置、软件、策略、规则和最佳实践应用于系统（无论是新的还是旧的），以便系统运行时不会因安全漏洞和妥协而导致严重停机。 作为系统管理员，安全是最重要且最耗时的任务。
+1、保护 root 账号
+2、寻找安全性和可用性的平衡点
+	系统必须有用户、软件、文件和网络连接才能发挥作用。 所有这些都会使系统安全性降低但可用性更高。具体工作如下：
+		①	维护系统，使其免受网络攻击
+		②	保护系统，免受粗心用户的侵害
+		③	保护用户免受彼此的侵害
+		④	保护系统配置和数据不被任何人访问，除了哪些被授予适当访问权限的人
+	Ⅰ	最大限度地减少系统的攻击面
+		安装新系统时，必须仔细选择要安装的服务。
+		①	检查并删除GUI
+			检查系统是否有图形显示管理器，如：
+				# systemctl get-default
+				multi-user.target
+			如果响应不是 multi-user.target，运行以下命令来更正它：
+				# systemctl set-default multi-user.target
+			检查GUI或图形显示管理的安装：
+				# rpm -qa | grep xorg | grep server
+			将安装的图形管理工具【如xorg-x11-server-utils】删除。
+		②	创建单一目的系统
+			每个系统至少需要一个 SSH 服务器。 这是一种连接和管理系统的安全方法。未使用的服务会使系统容易受到攻击，并且是系统和网络范围内的妥协的入口点。应该使用服务器或最小安装选项来安装系统，并在安装和设置后根据需要添加服务。
+			如果您的发行版没有服务器或最小安装选项，那么必须有选择地卸载系统规定用途未明确需要的任何服务或软件包。
+			构建一个托管单一服务的系统比削减已经存在了一段时间的系统要容易得多。 但是，作为系统管理员职责的一部分，应该对管理下的任何系统执行安全“扫描”。
+			安全扫描或审计包括检查系统是否存在未使用和过时的服务，这些服务导致系统容易受到攻击。安全扫描包括使用以下命令检查本地计算机上的侦听端口：
+				# netstat -an | grep LISTEN | grep tcp
+				# netstat -an | grep LISTEN | grep udp
+			恶意行为者经常设置伪装成Web服务、DNS服务或其他合法服务的渗透服务来欺骗系统管理员和端口扫描程序。应该检查系统上所有侦听进程的合法性。
+			应该执行自动删除以从系统中删除未使用的软件：
+				# yum autoremove
+			此命令会删除因卸载不完整或软件包删除清理不充分而残留的任何软件包依赖项。
+			启用任何通过网络的监听守护程序或服务都会使系统面临潜在风险。 根据需要使用安全协议、防火墙、访问控制列表和 IP 限制来保护所有服务。
+	Ⅱ	创建和保护用户账号
+		一旦在系统上创建用户帐户，系统的安全性就会被削弱。除了 root 帐户之外没有其他用户帐户。服务帐户是普通用户帐户，即使没有交互式 shell。 没有 shell 意味着没有人可以以该用户身份交互式登录并发出 shell 命令。 
+		大多数系统都有交互式 shell 用户帐户，以便普通用户可以登录并发出命令、编译软件、连接到其他系统以及使用存储和数据等资源。
+		交互式用户帐户的最大问题是密码较弱。 弱密码会威胁您系统的安全。 至少有两种方法可以缓解这个问题。 一种是通过创建和实施强密码策略来将系统设置为需要强密码。 
+		另一种方法是禁用密码使用，转而使用 SSH 密钥文件，以便用户无需密码即可连接到其他系统。 您还可以使用各种免费或商业工具配置多重身份验证 (MFA)。
+		①	创建和强制强密码策略
+			在基于 Red Hat Enterprise Linux 的系统上，/etc/security/pwquality.conf 文件是允许系统管理员来设置并执行密码策略的配置文件。
+		②	通过无密码密钥文件连接其他系统
+			当毫无戒心的用户使用密码从一个系统连接到另一个系统时，通过数据包嗅探或键盘记录程序捕获密码是危害系统的一种常见方法。 防止密码捕获的最佳方法之一是完全停止使用密码。 
+			使用密钥文件，用户可以从一个系统连接到另一个系统，而无需交互式输入密码。
+
+
+
+
+
+
+
+			
+
+			
+
+
 
 
 
